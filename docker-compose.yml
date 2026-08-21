@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: voice_analyzer
+      POSTGRES_PASSWORD: voice_analyzer
+      POSTGRES_DB: voice_analyzer
+    ports:
+      - '5433:5432'
+    volumes:
+      - voice_analyzer_pg_data:/var/lib/postgresql/data
+
+volumes:
+  voice_analyzer_pg_data:
