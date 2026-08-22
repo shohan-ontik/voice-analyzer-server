@@ -1,14 +1,13 @@
 import { DataTypes, Model, type CreationOptional, type InferAttributes, type InferCreationAttributes, type Sequelize } from 'sequelize';
 
-// Mirrors app/lib/analysis.ts (`AnalysisResult`) and app/lib/pitch.ts
-// (`ScenarioKey`) in the voice-analyzer frontend repo. Kept as plain JSONB
-// blobs since both arrays are fixed-shape and always read/written as one
-// unit with their parent session.
-export const SCENARIO_KEYS = ['cold', 'demo', 'objection', 'elevator'] as const;
-export type ScenarioKey = (typeof SCENARIO_KEYS)[number];
-
+// Mirrors app/lib/analysis.ts (`AnalysisResult`) in the voice-analyzer
+// frontend repo. Kept as a plain JSONB blob since it's fixed-shape per
+// session and always read/written as one unit with its parent. Categories
+// are no longer a fixed enum — each session snapshots whichever
+// ScoreCategory rows were active at analysis time, identified by `name`
+// only (an admin can rename/deactivate/delete a category later without
+// corrupting past results).
 export type CategoryBreakdown = {
-  key: 'presentation' | 'correctness' | 'pronunciation' | 'soft';
   name: string;
   score: number;
   feedback: string;
@@ -26,7 +25,10 @@ export class PracticeSession extends Model<
 > {
   declare id: CreationOptional<string>;
   declare userId: string;
-  declare scenario: ScenarioKey;
+  // Nullable: SET NULL if the topic is later deleted. `topicName` is a
+  // snapshot so history keeps reading correctly either way.
+  declare topicId: CreationOptional<string | null>;
+  declare topicName: string;
   declare overallScore: number;
   declare verdict: string;
   declare categories: CategoryBreakdown[];
@@ -47,8 +49,12 @@ export function initPracticeSessionModel(sequelize: Sequelize) {
         type: DataTypes.UUID,
         allowNull: false,
       },
-      scenario: {
-        type: DataTypes.STRING(32),
+      topicId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+      },
+      topicName: {
+        type: DataTypes.STRING(255),
         allowNull: false,
       },
       overallScore: {
@@ -74,7 +80,7 @@ export function initPracticeSessionModel(sequelize: Sequelize) {
       sequelize,
       modelName: 'PracticeSession',
       tableName: 'practice_sessions',
-      indexes: [{ fields: ['userId', 'createdAt'] }],
+      indexes: [{ fields: ['userId', 'createdAt'] }, { fields: ['topicId'] }],
     }
   );
 

@@ -1,6 +1,5 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
-import type { ScenarioKey } from '../models/practiceSession.model';
 import {
   createPracticeSession,
   getOwnPracticeSession,
@@ -14,12 +13,12 @@ export const createPracticeSessionHandler = asyncHandler(async (req: Request, re
 });
 
 export const listOwnPracticeSessionsHandler = asyncHandler(async (req: Request, res: Response) => {
-  const { page, pageSize, scenario } = req.query as unknown as {
+  const { page, pageSize, topicId } = req.query as unknown as {
     page: number;
     pageSize: number;
-    scenario?: ScenarioKey;
+    topicId?: string;
   };
-  const result = await listOwnPracticeSessions(req.user!.id, { page, pageSize, scenario });
+  const result = await listOwnPracticeSessions(req.user!.id, { page, pageSize, topicId });
   res.json(result);
 });
 

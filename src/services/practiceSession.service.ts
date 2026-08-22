@@ -1,12 +1,13 @@
 import { Op } from 'sequelize';
 import { PracticeSession } from '../models';
-import type { CategoryBreakdown, ScenarioKey, TranscriptSegment } from '../models/practiceSession.model';
+import type { CategoryBreakdown, TranscriptSegment } from '../models/practiceSession.model';
 import { ApiError } from '../utils/ApiError';
 
 export async function createPracticeSession(
   userId: string,
   input: {
-    scenario: ScenarioKey;
+    topicId?: string | null;
+    topicName: string;
     overall: number;
     verdict: string;
     categories: CategoryBreakdown[];
@@ -15,7 +16,8 @@ export async function createPracticeSession(
 ) {
   return PracticeSession.create({
     userId,
-    scenario: input.scenario,
+    topicId: input.topicId ?? null,
+    topicName: input.topicName,
     overallScore: input.overall,
     verdict: input.verdict,
     categories: input.categories,
@@ -25,11 +27,11 @@ export async function createPracticeSession(
 
 export async function listOwnPracticeSessions(
   userId: string,
-  params: { page: number; pageSize: number; scenario?: ScenarioKey }
+  params: { page: number; pageSize: number; topicId?: string }
 ) {
-  const where: { userId: string; scenario?: ScenarioKey } = { userId };
-  if (params.scenario) {
-    where.scenario = params.scenario;
+  const where: { userId: string; topicId?: string } = { userId };
+  if (params.topicId) {
+    where.topicId = params.topicId;
   }
 
   const { rows, count } = await PracticeSession.findAndCountAll({
