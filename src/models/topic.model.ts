@@ -1,10 +1,10 @@
 import { DataTypes, Model, type CreationOptional, type InferAttributes, type InferCreationAttributes, type Sequelize } from 'sequelize';
 
 // A Topic is an admin-managed practice scenario: a display name plus the
-// Bangla passage reps read aloud. Eventually replaces the hardcoded
-// SCENARIOS/PITCH_PASSAGE_BN in the voice-analyzer frontend's
-// app/lib/pitch.ts once that app is wired to fetch scenarios from here
-// (GET /api/v1/topics) instead of a fixed list.
+// key facts (in Bangla) a rep's pitch should cover. Not a verbatim script -
+// the frontend's Gemini prompt (see voice-analyzer's app/lib/analysis.ts)
+// grades the rep's own words against these facts for accuracy, not for
+// wording similarity.
 export class Topic extends Model<InferAttributes<Topic>, InferCreationAttributes<Topic>> {
   declare id: CreationOptional<string>;
   declare name: string;
