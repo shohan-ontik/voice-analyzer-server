@@ -12,6 +12,9 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
   declare tokenVersion: CreationOptional<number>;
   declare mustChangePassword: CreationOptional<boolean>;
   declare lastLoginAt: CreationOptional<Date | null>;
+  declare employeeId: CreationOptional<string | null>;
+  declare department: CreationOptional<string | null>;
+  declare jobTitle: CreationOptional<string | null>;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
 
@@ -24,6 +27,9 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
       isBanned: this.isBanned,
       mustChangePassword: this.mustChangePassword,
       lastLoginAt: this.lastLoginAt,
+      employeeId: this.employeeId,
+      department: this.department,
+      jobTitle: this.jobTitle,
       createdAt: this.createdAt,
     };
   }
@@ -72,6 +78,19 @@ export function initUserModel(sequelize: Sequelize) {
       },
       lastLoginAt: {
         type: DataTypes.DATE,
+        allowNull: true,
+      },
+      employeeId: {
+        type: DataTypes.STRING(64),
+        allowNull: true,
+        unique: true,
+      },
+      department: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
+      jobTitle: {
+        type: DataTypes.STRING(255),
         allowNull: true,
       },
       createdAt: DataTypes.DATE,

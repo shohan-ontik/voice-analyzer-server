@@ -6,6 +6,9 @@ export const createUserSchema = z.object({
     name: z.string().min(1).max(255),
     role: z.enum(['user', 'admin']).optional(),
     tempPassword: z.string().min(8).optional(),
+    employeeId: z.string().min(1).max(64).optional(),
+    department: z.string().min(1).max(255).optional(),
+    jobTitle: z.string().min(1).max(255).optional(),
   }),
 });
 

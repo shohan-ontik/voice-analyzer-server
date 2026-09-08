@@ -29,6 +29,13 @@ export class PracticeSession extends Model<
   // snapshot so history keeps reading correctly either way.
   declare topicId: CreationOptional<string | null>;
   declare topicName: string;
+  // Set when this session is a chapter roleplay practice. SET NULL if the
+  // chapter is later deleted — the session itself still stands as history.
+  declare chapterId: CreationOptional<string | null>;
+  // Set when this session is a graded exam attempt (mutually exclusive with
+  // chapterId in practice, though not DB-enforced). Whether it counts as a
+  // "pass" is derived by comparing overallScore to Exam.passMark, not stored.
+  declare examId: CreationOptional<string | null>;
   declare overallScore: number;
   declare verdict: string;
   declare categories: CategoryBreakdown[];
@@ -57,6 +64,14 @@ export function initPracticeSessionModel(sequelize: Sequelize) {
         type: DataTypes.STRING(255),
         allowNull: false,
       },
+      chapterId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+      },
+      examId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+      },
       overallScore: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -80,7 +95,12 @@ export function initPracticeSessionModel(sequelize: Sequelize) {
       sequelize,
       modelName: 'PracticeSession',
       tableName: 'practice_sessions',
-      indexes: [{ fields: ['userId', 'createdAt'] }, { fields: ['topicId'] }],
+      indexes: [
+        { fields: ['userId', 'createdAt'] },
+        { fields: ['topicId'] },
+        { fields: ['chapterId'] },
+        { fields: ['examId'] },
+      ],
     }
   );
 

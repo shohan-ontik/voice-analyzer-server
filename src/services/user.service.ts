@@ -3,11 +3,26 @@ import { User } from '../models';
 import { ApiError } from '../utils/ApiError';
 import { generateTempPassword, hashPassword } from './auth.service';
 
-export async function createUser(input: { email: string; name: string; role?: 'user' | 'admin'; tempPassword?: string }) {
+export async function createUser(input: {
+  email: string;
+  name: string;
+  role?: 'user' | 'admin';
+  tempPassword?: string;
+  employeeId?: string;
+  department?: string;
+  jobTitle?: string;
+}) {
   const email = input.email.trim().toLowerCase();
   const existing = await User.findOne({ where: { email } });
   if (existing) {
     throw ApiError.conflict('A user with this email already exists.');
+  }
+
+  if (input.employeeId) {
+    const existingEmployeeId = await User.findOne({ where: { employeeId: input.employeeId } });
+    if (existingEmployeeId) {
+      throw ApiError.conflict('A user with this employee ID already exists.');
+    }
   }
 
   const tempPassword = input.tempPassword ?? generateTempPassword();
@@ -19,6 +34,9 @@ export async function createUser(input: { email: string; name: string; role?: 'u
     passwordHash,
     role: input.role ?? 'user',
     mustChangePassword: true,
+    employeeId: input.employeeId ?? null,
+    department: input.department ?? null,
+    jobTitle: input.jobTitle ?? null,
   });
 
   return { user, tempPassword };
@@ -31,6 +49,7 @@ export async function listUsers(params: { page: number; pageSize: number; q?: st
     where[Op.or] = [
       { email: { [Op.iLike]: `%${params.q}%` } },
       { name: { [Op.iLike]: `%${params.q}%` } },
+      { employeeId: { [Op.iLike]: `%${params.q}%` } },
     ];
   }
   if (typeof params.isBanned === 'boolean') {
