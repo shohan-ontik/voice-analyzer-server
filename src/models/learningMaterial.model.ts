@@ -11,6 +11,11 @@ export class LearningMaterial extends Model<InferAttributes<LearningMaterial>, I
   declare meta: string;
   declare filename: string;
   declare order: CreationOptional<number>;
+  // Set together: storageKey is the uploaded file's name under
+  // env.UPLOAD_DIR, mimeType is what the browser reported at upload time.
+  // Both null on legacy/seeded materials, which stream a shared demo file.
+  declare storageKey: CreationOptional<string | null>;
+  declare mimeType: CreationOptional<string | null>;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
 }
@@ -48,6 +53,14 @@ export function initLearningMaterialModel(sequelize: Sequelize) {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 0,
+      },
+      storageKey: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
+      mimeType: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
       },
       createdAt: DataTypes.DATE,
       updatedAt: DataTypes.DATE,

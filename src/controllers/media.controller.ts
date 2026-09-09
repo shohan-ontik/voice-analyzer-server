@@ -2,16 +2,16 @@ import fs from 'fs';
 import path from 'path';
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
+import { UPLOAD_DIR } from '../utils/uploadPath';
 import { LearningMaterial } from '../models';
 import type { LearningMaterialType } from '../models/learningMaterial.model';
 import { ApiError } from '../utils/ApiError';
 
-// Every material of a given type streams the same placeholder file for
-// now — there's no per-material upload/storage pipeline yet. The endpoint
-// still looks the material up so a bad/deleted id, or a type mismatch
-// (e.g. requesting the video route for a pdf material), 404s instead of
-// silently serving the wrong file.
-const DEMO_FILES: Record<'video' | 'pdf', { path: string; contentType: string }> = {
+// Legacy/seeded materials have no uploaded file (storageKey is null) and
+// stream one of these shared placeholders instead — there was no upload
+// pipeline when they were created. There's no audio placeholder since
+// nothing ever played seeded audio materials back.
+const DEMO_FILES: Partial<Record<LearningMaterialType, { path: string; contentType: string }>> = {
   video: {
     path: path.join(__dirname, '../../storage/demo-chapter-video.mp4'),
     contentType: 'video/mp4',
@@ -22,23 +22,44 @@ const DEMO_FILES: Record<'video' | 'pdf', { path: string; contentType: string }>
   },
 };
 
-async function streamDemoFile(req: Request, res: Response, expectedType: LearningMaterialType) {
+const DEFAULT_CONTENT_TYPE: Record<LearningMaterialType, string> = {
+  video: 'video/mp4',
+  pdf: 'application/pdf',
+  audio: 'audio/mpeg',
+};
+
+async function resolveFile(material: LearningMaterial, expectedType: LearningMaterialType) {
+  if (material.storageKey) {
+    return {
+      path: path.join(UPLOAD_DIR, material.storageKey),
+      contentType: material.mimeType || DEFAULT_CONTENT_TYPE[expectedType],
+    };
+  }
+
+  const demo = DEMO_FILES[expectedType];
+  if (!demo) {
+    throw ApiError.notFound('This material has no file.');
+  }
+  return demo;
+}
+
+async function streamMaterialFile(req: Request, res: Response, expectedType: LearningMaterialType) {
   const material = await LearningMaterial.findByPk(req.params.materialId);
   if (!material || material.type !== expectedType) {
     throw ApiError.notFound('Material not found.');
   }
 
-  const demoFile = DEMO_FILES[expectedType as 'video' | 'pdf'];
-  const stat = await fs.promises.stat(demoFile.path);
+  const file = await resolveFile(material, expectedType);
+  const stat = await fs.promises.stat(file.path);
   const range = req.headers.range;
 
   if (!range) {
     res.writeHead(200, {
-      'Content-Type': demoFile.contentType,
+      'Content-Type': file.contentType,
       'Content-Length': stat.size,
       'Accept-Ranges': 'bytes',
     });
-    fs.createReadStream(demoFile.path).pipe(res);
+    fs.createReadStream(file.path).pipe(res);
     return;
   }
 
@@ -53,14 +74,22 @@ async function streamDemoFile(req: Request, res: Response, expectedType: Learnin
   }
 
   res.writeHead(206, {
-    'Content-Type': demoFile.contentType,
+    'Content-Type': file.contentType,
     'Content-Length': end - start + 1,
     'Content-Range': `bytes ${start}-${end}/${stat.size}`,
     'Accept-Ranges': 'bytes',
   });
-  fs.createReadStream(demoFile.path, { start, end }).pipe(res);
+  fs.createReadStream(file.path, { start, end }).pipe(res);
 }
 
-export const streamMaterialVideoHandler = asyncHandler((req: Request, res: Response) => streamDemoFile(req, res, 'video'));
+export const streamMaterialVideoHandler = asyncHandler((req: Request, res: Response) =>
+  streamMaterialFile(req, res, 'video')
+);
 
-export const streamMaterialPdfHandler = asyncHandler((req: Request, res: Response) => streamDemoFile(req, res, 'pdf'));
+export const streamMaterialPdfHandler = asyncHandler((req: Request, res: Response) =>
+  streamMaterialFile(req, res, 'pdf')
+);
+
+export const streamMaterialAudioHandler = asyncHandler((req: Request, res: Response) =>
+  streamMaterialFile(req, res, 'audio')
+);

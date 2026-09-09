@@ -1,6 +1,30 @@
+import fs from 'fs';
+import path from 'path';
 import { Op } from 'sequelize';
 import { Exam, LearningMaterial, ModuleChapter, PracticeSession, TrainingModule, UserChapterProgress } from '../models';
+import type { LearningMaterialType } from '../models/learningMaterial.model';
 import { ApiError } from '../utils/ApiError';
+import { UPLOAD_DIR } from '../utils/uploadPath';
+
+// A chapter's roleplay scenario has no editor in the admin Module Editor
+// yet (see the Chapter Builder screen) — new chapters get this clearly-
+// marked placeholder so the trainee-facing app's PitchScenario fields stay
+// non-null. Configuring the real scenario needs its own future editor.
+const PLACEHOLDER_CHAPTER_SCENARIO = {
+  clientInitials: '??',
+  clientName: 'TBD',
+  clientTitle: "TODO: configure this chapter's roleplay scenario",
+  objection: 'TODO: add the client objection this chapter should practice against.',
+  objective: 'TODO: describe what the rep should accomplish in this roleplay.',
+  criteria: [] as string[],
+};
+
+function unlinkUploadedFile(storageKey: string | null) {
+  if (!storageKey) return;
+  fs.promises.unlink(path.join(UPLOAD_DIR, storageKey)).catch(() => {
+    // Best-effort — an already-missing file shouldn't block the delete.
+  });
+}
 
 function serializeModule(
   trainingModule: TrainingModule,
@@ -161,11 +185,13 @@ export async function getModuleForAdmin(id: string) {
     description: trainingModule.description,
     thumbnailUrl: trainingModule.thumbnailUrl,
     isActive: trainingModule.isActive,
+    publishDate: trainingModule.publishDate,
     chapters: chapters.map((chapter) => ({
       id: chapter.id,
       slug: chapter.slug,
       title: chapter.title,
       description: chapter.description,
+      order: chapter.order,
       materials: [...(chapter.materials ?? [])]
         .sort((a, b) => a.order - b.order)
         .map((material) => ({ id: material.id, type: material.type, title: material.title, meta: material.meta })),
@@ -175,6 +201,7 @@ export async function getModuleForAdmin(id: string) {
       title: trainingModule.exam.title,
       passMark: trainingModule.exam.passMark,
       scenario: trainingModule.exam.scenario,
+      deadlineDays: trainingModule.exam.deadlineDays,
     },
   };
 }
@@ -203,7 +230,7 @@ export async function createModuleForAdmin(input: { title: string; description?:
 
 export async function updateModuleForAdmin(
   id: string,
-  patch: { title?: string; description?: string; thumbnailUrl?: string; isActive?: boolean }
+  patch: { title?: string; description?: string; thumbnailUrl?: string; isActive?: boolean; publishDate?: string | null }
 ) {
   const trainingModule = await TrainingModule.findByPk(id, {
     include: [
@@ -230,9 +257,164 @@ export async function updateModuleForAdmin(
   if (patch.description !== undefined) trainingModule.description = patch.description;
   if (patch.thumbnailUrl !== undefined) trainingModule.thumbnailUrl = patch.thumbnailUrl;
   if (patch.isActive !== undefined) trainingModule.isActive = patch.isActive;
+  if (patch.publishDate !== undefined) trainingModule.publishDate = patch.publishDate;
   await trainingModule.save();
 
   return trainingModule;
+}
+
+export async function deleteModuleForAdmin(id: string) {
+  const trainingModule = await TrainingModule.findByPk(id, {
+    include: [{ model: ModuleChapter, as: 'chapters', include: [{ model: LearningMaterial, as: 'materials' }] }],
+  });
+  if (!trainingModule) {
+    throw ApiError.notFound('Module not found.');
+  }
+
+  for (const chapter of trainingModule.chapters ?? []) {
+    for (const material of chapter.materials ?? []) {
+      unlinkUploadedFile(material.storageKey);
+    }
+  }
+
+  // module_chapters, learning_materials, and exams all CASCADE on their
+  // moduleId/chapterId FK — practice_sessions referencing this module's
+  // chapters/exam SET NULL instead, so trainees' history survives.
+  await trainingModule.destroy();
+}
+
+export async function createChapterForAdmin(moduleId: string, input: { title: string; description?: string }) {
+  const trainingModule = await TrainingModule.findByPk(moduleId);
+  if (!trainingModule) {
+    throw ApiError.notFound('Module not found.');
+  }
+
+  const baseSlug = slugify(input.title);
+  let slug = baseSlug;
+  let suffix = 1;
+  // eslint-disable-next-line no-await-in-loop -- sequential by design: each check depends on the previous attempt's result
+  while (await ModuleChapter.findOne({ where: { slug } })) {
+    suffix += 1;
+    slug = `${baseSlug}-${suffix}`;
+  }
+
+  const maxOrder = (await ModuleChapter.max('order', { where: { moduleId } })) as number | null;
+
+  return ModuleChapter.create({
+    moduleId,
+    slug,
+    title: input.title,
+    description: input.description ?? '',
+    scenario: PLACEHOLDER_CHAPTER_SCENARIO,
+    order: (maxOrder ?? -1) + 1,
+  });
+}
+
+async function findChapterInModule(moduleId: string, chapterId: string) {
+  const chapter = await ModuleChapter.findOne({ where: { id: chapterId, moduleId } });
+  if (!chapter) {
+    throw ApiError.notFound('Chapter not found.');
+  }
+  return chapter;
+}
+
+export async function updateChapterForAdmin(
+  moduleId: string,
+  chapterId: string,
+  patch: { title?: string; description?: string }
+) {
+  const chapter = await findChapterInModule(moduleId, chapterId);
+  if (patch.title !== undefined) chapter.title = patch.title;
+  if (patch.description !== undefined) chapter.description = patch.description;
+  await chapter.save();
+  return chapter;
+}
+
+export async function deleteChapterForAdmin(moduleId: string, chapterId: string) {
+  const chapter = await ModuleChapter.findOne({
+    where: { id: chapterId, moduleId },
+    include: [{ model: LearningMaterial, as: 'materials' }],
+  });
+  if (!chapter) {
+    throw ApiError.notFound('Chapter not found.');
+  }
+
+  for (const material of chapter.materials ?? []) {
+    unlinkUploadedFile(material.storageKey);
+  }
+
+  await chapter.destroy();
+}
+
+export async function createMaterialForAdmin(
+  moduleId: string,
+  chapterId: string,
+  input: { title: string; type: LearningMaterialType; meta: string; filename: string; storageKey: string; mimeType: string }
+) {
+  await findChapterInModule(moduleId, chapterId);
+
+  const maxOrder = (await LearningMaterial.max('order', { where: { chapterId } })) as number | null;
+
+  return LearningMaterial.create({
+    chapterId,
+    type: input.type,
+    title: input.title,
+    meta: input.meta,
+    filename: input.filename,
+    storageKey: input.storageKey,
+    mimeType: input.mimeType,
+    order: (maxOrder ?? -1) + 1,
+  });
+}
+
+export async function deleteMaterialForAdmin(moduleId: string, chapterId: string, materialId: string) {
+  await findChapterInModule(moduleId, chapterId);
+
+  const material = await LearningMaterial.findOne({ where: { id: materialId, chapterId } });
+  if (!material) {
+    throw ApiError.notFound('Material not found.');
+  }
+
+  unlinkUploadedFile(material.storageKey);
+  await material.destroy();
+}
+
+export async function upsertExamForAdmin(
+  moduleId: string,
+  patch: { scenario?: string; deadlineDays?: number | null; passMark?: number }
+) {
+  const trainingModule = await TrainingModule.findByPk(moduleId, { include: [{ model: Exam, as: 'exam' }] });
+  if (!trainingModule) {
+    throw ApiError.notFound('Module not found.');
+  }
+
+  if (trainingModule.exam) {
+    const exam = trainingModule.exam;
+    if (patch.scenario !== undefined) exam.scenario = patch.scenario;
+    if (patch.deadlineDays !== undefined) exam.deadlineDays = patch.deadlineDays;
+    if (patch.passMark !== undefined) exam.passMark = patch.passMark;
+    await exam.save();
+    return exam;
+  }
+
+  const baseSlug = `${trainingModule.slug}-final`;
+  let slug = baseSlug;
+  let suffix = 1;
+  // eslint-disable-next-line no-await-in-loop -- sequential by design: each check depends on the previous attempt's result
+  while (await Exam.findOne({ where: { slug } })) {
+    suffix += 1;
+    slug = `${baseSlug}-${suffix}`;
+  }
+
+  return Exam.create({
+    moduleId,
+    slug,
+    title: `${trainingModule.title} — Final Exam`,
+    moduleLabel: trainingModule.title,
+    scenario: patch.scenario ?? '',
+    passMark: patch.passMark ?? 80,
+    deadlineDays: patch.deadlineDays ?? null,
+  });
 }
 
 export async function markChapterComplete(userId: string, moduleSlug: string, chapterSlug: string) {

@@ -14,6 +14,9 @@ export class Exam extends Model<InferAttributes<Exam>, InferCreationAttributes<E
   declare scenario: string;
   declare passMark: number;
   declare dueDate: CreationOptional<Date | null>;
+  // "Days after enrollment" this exam is due, as authored in the admin
+  // Module Editor — independent of dueDate above, which nothing sets.
+  declare deadlineDays: CreationOptional<number | null>;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
 
@@ -57,6 +60,10 @@ export function initExamModel(sequelize: Sequelize) {
       },
       dueDate: {
         type: DataTypes.DATE,
+        allowNull: true,
+      },
+      deadlineDays: {
+        type: DataTypes.INTEGER,
         allowNull: true,
       },
       createdAt: DataTypes.DATE,

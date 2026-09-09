@@ -3,3 +3,7 @@ dist/
 .env
 *.log
 .DS_Store
+
+# User-uploaded training materials — unlike storage/demo-*, these aren't
+# fixture content and shouldn't be committed.
+storage/uploads/

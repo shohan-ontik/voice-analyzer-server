@@ -14,6 +14,9 @@ export class TrainingModule extends Model<InferAttributes<TrainingModule>, Infer
   declare thumbnailUrl: string | null;
   declare order: CreationOptional<number>;
   declare isActive: CreationOptional<boolean>;
+  // Admin-authored metadata (e.g. "go live on this date") — not enforced by
+  // any scheduler; isActive is what actually controls trainee visibility.
+  declare publishDate: CreationOptional<string | null>;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
 
@@ -56,6 +59,10 @@ export function initModuleModel(sequelize: Sequelize) {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: true,
+      },
+      publishDate: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
       },
       createdAt: DataTypes.DATE,
       updatedAt: DataTypes.DATE,

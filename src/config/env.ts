@@ -10,6 +10,8 @@ const envSchema = z.object({
   SEED_ADMIN_EMAIL: z.string().email().optional(),
   SEED_ADMIN_NAME: z.string().optional(),
   SEED_ADMIN_PASSWORD: z.string().min(8).optional(),
+  UPLOAD_DIR: z.string().min(1).default('storage/uploads'),
+  MAX_UPLOAD_SIZE_MB: z.coerce.number().int().positive().default(200),
 });
 
 const parsed = envSchema.safeParse(process.env);
