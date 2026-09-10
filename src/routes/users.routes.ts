@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { banUserHandler, createUserHandler, listUsersHandler, unbanUserHandler } from '../controllers/users.controller';
+import { banUserHandler, createUserHandler, deleteUserHandler, listUsersHandler, unbanUserHandler } from '../controllers/users.controller';
 import { authenticate } from '../middleware/authenticate';
 import { requireAdmin } from '../middleware/requireAdmin';
 import { validate } from '../middleware/validate';
@@ -13,3 +13,4 @@ usersRouter.post('/', validate(createUserSchema), createUserHandler);
 usersRouter.get('/', validate(listUsersSchema), listUsersHandler);
 usersRouter.post('/:id/ban', validate(userIdParamSchema), banUserHandler);
 usersRouter.post('/:id/unban', validate(userIdParamSchema), unbanUserHandler);
+usersRouter.delete('/:id', validate(userIdParamSchema), deleteUserHandler);

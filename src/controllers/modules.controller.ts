@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
-import { getModuleForUser, listModulesForUser, markChapterComplete } from '../services/module.service';
+import { getModuleForUser, listModulesForUser, markMaterialComplete } from '../services/module.service';
 
 export const listModulesHandler = asyncHandler(async (req: Request, res: Response) => {
   const items = await listModulesForUser(req.user!.id);
@@ -12,7 +12,7 @@ export const getModuleHandler = asyncHandler(async (req: Request, res: Response)
   res.json(trainingModule);
 });
 
-export const markChapterCompleteHandler = asyncHandler(async (req: Request, res: Response) => {
-  const result = await markChapterComplete(req.user!.id, req.params.slug, req.params.chapterSlug);
+export const markMaterialCompleteHandler = asyncHandler(async (req: Request, res: Response) => {
+  const result = await markMaterialComplete(req.user!.id, req.params.slug, req.params.chapterSlug, req.params.materialId);
   res.json(result);
 });

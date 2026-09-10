@@ -8,6 +8,7 @@ import { ModuleChapter, initModuleChapterModel } from './moduleChapter.model';
 import { LearningMaterial, initLearningMaterialModel } from './learningMaterial.model';
 import { Exam, initExamModel } from './exam.model';
 import { UserChapterProgress, initUserChapterProgressModel } from './userChapterProgress.model';
+import { UserMaterialProgress, initUserMaterialProgressModel } from './userMaterialProgress.model';
 
 initUserModel(sequelize);
 initPracticeSessionModel(sequelize);
@@ -18,6 +19,7 @@ initModuleChapterModel(sequelize);
 initLearningMaterialModel(sequelize);
 initExamModel(sequelize);
 initUserChapterProgressModel(sequelize);
+initUserMaterialProgressModel(sequelize);
 
 User.hasMany(PracticeSession, {
   foreignKey: 'userId',
@@ -79,6 +81,26 @@ UserChapterProgress.belongsTo(ModuleChapter, {
   as: 'chapter',
 });
 
+User.hasMany(UserMaterialProgress, {
+  foreignKey: 'userId',
+  as: 'materialProgress',
+  onDelete: 'CASCADE',
+});
+UserMaterialProgress.belongsTo(User, {
+  foreignKey: 'userId',
+  as: 'user',
+});
+
+LearningMaterial.hasMany(UserMaterialProgress, {
+  foreignKey: 'materialId',
+  as: 'progress',
+  onDelete: 'CASCADE',
+});
+UserMaterialProgress.belongsTo(LearningMaterial, {
+  foreignKey: 'materialId',
+  as: 'material',
+});
+
 ModuleChapter.hasMany(PracticeSession, {
   foreignKey: 'chapterId',
   as: 'practiceSessions',
@@ -108,4 +130,5 @@ export {
   LearningMaterial,
   Exam,
   UserChapterProgress,
+  UserMaterialProgress,
 };

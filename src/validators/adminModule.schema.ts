@@ -23,11 +23,23 @@ export const moduleIdParamSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
 });
 
+// AI-generated in the admin app from the chapter's title/description (see
+// generate-scenario there) and sent along with create/update requests.
+const chapterScenarioSchema = z.object({
+  clientInitials: z.string().min(1).max(10),
+  clientName: z.string().min(1).max(255),
+  clientTitle: z.string().min(1).max(255),
+  objection: z.string().min(1).max(2000),
+  objective: z.string().min(1).max(2000),
+  criteria: z.array(z.string().min(1).max(500)).max(10),
+});
+
 export const createChapterSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: z.object({
     title: z.string().min(1).max(500),
     description: z.string().max(5000).optional(),
+    scenario: chapterScenarioSchema.optional(),
   }),
 });
 
@@ -40,6 +52,7 @@ export const updateChapterSchema = z.object({
   body: z.object({
     title: z.string().min(1).max(500).optional(),
     description: z.string().max(5000).optional(),
+    scenario: chapterScenarioSchema.optional(),
   }),
 });
 

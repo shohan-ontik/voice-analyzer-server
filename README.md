@@ -24,12 +24,10 @@ npm run dev                 # http://localhost:4000
 
 ## API
 
-Base path: `/api/v1`. See `../voice-analyzer/.claude` plan or `src/routes/`
-for the full endpoint list: `POST /auth/login`, `GET /auth/me`,
-`PATCH /auth/me/password`, `POST|GET /admin/users`,
-`POST /admin/users/:id/ban`, `POST /admin/users/:id/unban`,
-`POST|GET /practice-sessions`, `GET /practice-sessions/:id`,
-`GET /practice-sessions/stats/summary`.
+Base path: `/api/v1`. Full interactive docs (Swagger UI): start the server
+and open `http://localhost:4000/api/v1/docs`. Raw OpenAPI document:
+`GET /api/v1/openapi.json` (hand-maintained at `src/docs/openapi.ts` —
+update it alongside any route/validator/service change).
 
 Auth: `Authorization: Bearer <token>` from `POST /auth/login`. No
 self-signup — accounts are created by an admin via `POST /admin/users`,

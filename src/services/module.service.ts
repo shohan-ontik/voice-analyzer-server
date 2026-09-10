@@ -1,22 +1,32 @@
 import fs from 'fs';
 import path from 'path';
 import { Op } from 'sequelize';
-import { Exam, LearningMaterial, ModuleChapter, PracticeSession, TrainingModule, UserChapterProgress } from '../models';
+import {
+  Exam,
+  LearningMaterial,
+  ModuleChapter,
+  PracticeSession,
+  TrainingModule,
+  UserChapterProgress,
+  UserMaterialProgress,
+} from '../models';
 import type { LearningMaterialType } from '../models/learningMaterial.model';
+import type { ChapterScenario } from '../models/moduleChapter.model';
 import { ApiError } from '../utils/ApiError';
 import { UPLOAD_DIR } from '../utils/uploadPath';
 
-// A chapter's roleplay scenario has no editor in the admin Module Editor
-// yet (see the Chapter Builder screen) — new chapters get this clearly-
-// marked placeholder so the trainee-facing app's PitchScenario fields stay
-// non-null. Configuring the real scenario needs its own future editor.
-const PLACEHOLDER_CHAPTER_SCENARIO = {
+// Fallback only — the admin Module Editor auto-generates a real scenario
+// via AI from the chapter's title/description (see the admin app's
+// generate-scenario route) and sends it along with create/update requests.
+// This placeholder covers the rare case that generation fails or is
+// skipped, so the trainee-facing app's PitchScenario fields stay non-null.
+const PLACEHOLDER_CHAPTER_SCENARIO: ChapterScenario = {
   clientInitials: '??',
   clientName: 'TBD',
   clientTitle: "TODO: configure this chapter's roleplay scenario",
   objection: 'TODO: add the client objection this chapter should practice against.',
   objective: 'TODO: describe what the rep should accomplish in this roleplay.',
-  criteria: [] as string[],
+  criteria: [],
 };
 
 function unlinkUploadedFile(storageKey: string | null) {
@@ -29,6 +39,7 @@ function unlinkUploadedFile(storageKey: string | null) {
 function serializeModule(
   trainingModule: TrainingModule,
   completedAtByChapter: Map<string, Date>,
+  completedAtByMaterial: Map<string, Date>,
   bestScoreByExam: Map<string, number>
 ) {
   const chapters = [...(trainingModule.chapters ?? [])].sort((a, b) => a.order - b.order);
@@ -57,6 +68,7 @@ function serializeModule(
           title: material.title,
           meta: material.meta,
           filename: material.filename,
+          completedAt: completedAtByMaterial.get(material.id) ?? null,
         })),
       completedAt: completedAtByChapter.get(chapter.id) ?? null,
     })),
@@ -76,11 +88,15 @@ function serializeModule(
 
 async function attachProgress(modules: TrainingModule[], userId: string) {
   const chapterIds = modules.flatMap((m) => (m.chapters ?? []).map((c) => c.id));
+  const materialIds = modules.flatMap((m) => (m.chapters ?? []).flatMap((c) => (c.materials ?? []).map((mat) => mat.id)));
   const examIds = modules.map((m) => m.exam?.id).filter((id): id is string => Boolean(id));
 
-  const [progressRows, examSessions] = await Promise.all([
+  const [progressRows, materialProgressRows, examSessions] = await Promise.all([
     chapterIds.length
       ? UserChapterProgress.findAll({ where: { userId, chapterId: chapterIds } })
+      : Promise.resolve([]),
+    materialIds.length
+      ? UserMaterialProgress.findAll({ where: { userId, materialId: materialIds } })
       : Promise.resolve([]),
     examIds.length
       ? PracticeSession.findAll({ where: { userId, examId: { [Op.in]: examIds } } })
@@ -92,6 +108,11 @@ async function attachProgress(modules: TrainingModule[], userId: string) {
     if (row.completedAt) completedAtByChapter.set(row.chapterId, row.completedAt);
   }
 
+  const completedAtByMaterial = new Map<string, Date>();
+  for (const row of materialProgressRows) {
+    if (row.completedAt) completedAtByMaterial.set(row.materialId, row.completedAt);
+  }
+
   const bestScoreByExam = new Map<string, number>();
   for (const session of examSessions) {
     if (!session.examId) continue;
@@ -99,7 +120,7 @@ async function attachProgress(modules: TrainingModule[], userId: string) {
     if (session.overallScore > prev) bestScoreByExam.set(session.examId, session.overallScore);
   }
 
-  return modules.map((m) => serializeModule(m, completedAtByChapter, bestScoreByExam));
+  return modules.map((m) => serializeModule(m, completedAtByChapter, completedAtByMaterial, bestScoreByExam));
 }
 
 const MODULE_INCLUDE = [
@@ -283,7 +304,10 @@ export async function deleteModuleForAdmin(id: string) {
   await trainingModule.destroy();
 }
 
-export async function createChapterForAdmin(moduleId: string, input: { title: string; description?: string }) {
+export async function createChapterForAdmin(
+  moduleId: string,
+  input: { title: string; description?: string; scenario?: ChapterScenario }
+) {
   const trainingModule = await TrainingModule.findByPk(moduleId);
   if (!trainingModule) {
     throw ApiError.notFound('Module not found.');
@@ -305,7 +329,7 @@ export async function createChapterForAdmin(moduleId: string, input: { title: st
     slug,
     title: input.title,
     description: input.description ?? '',
-    scenario: PLACEHOLDER_CHAPTER_SCENARIO,
+    scenario: input.scenario ?? PLACEHOLDER_CHAPTER_SCENARIO,
     order: (maxOrder ?? -1) + 1,
   });
 }
@@ -321,11 +345,12 @@ async function findChapterInModule(moduleId: string, chapterId: string) {
 export async function updateChapterForAdmin(
   moduleId: string,
   chapterId: string,
-  patch: { title?: string; description?: string }
+  patch: { title?: string; description?: string; scenario?: ChapterScenario }
 ) {
   const chapter = await findChapterInModule(moduleId, chapterId);
   if (patch.title !== undefined) chapter.title = patch.title;
   if (patch.description !== undefined) chapter.description = patch.description;
+  if (patch.scenario !== undefined) chapter.scenario = patch.scenario;
   await chapter.save();
   return chapter;
 }
@@ -417,7 +442,7 @@ export async function upsertExamForAdmin(
   });
 }
 
-export async function markChapterComplete(userId: string, moduleSlug: string, chapterSlug: string) {
+export async function markMaterialComplete(userId: string, moduleSlug: string, chapterSlug: string, materialId: string) {
   const chapter = await ModuleChapter.findOne({
     where: { slug: chapterSlug },
     include: [{ model: TrainingModule, as: 'module', where: { slug: moduleSlug }, attributes: [] }],
@@ -426,9 +451,15 @@ export async function markChapterComplete(userId: string, moduleSlug: string, ch
     throw ApiError.notFound('Chapter not found.');
   }
 
-  const [progress] = await UserChapterProgress.findOrCreate({
-    where: { userId, chapterId: chapter.id },
-    defaults: { userId, chapterId: chapter.id, completedAt: new Date() },
+  const materials = await LearningMaterial.findAll({ where: { chapterId: chapter.id } });
+  const material = materials.find((m) => m.id === materialId);
+  if (!material) {
+    throw ApiError.notFound('Material not found.');
+  }
+
+  const [progress] = await UserMaterialProgress.findOrCreate({
+    where: { userId, materialId: material.id },
+    defaults: { userId, materialId: material.id, completedAt: new Date() },
   });
 
   if (!progress.completedAt) {
@@ -436,5 +467,22 @@ export async function markChapterComplete(userId: string, moduleSlug: string, ch
     await progress.save();
   }
 
-  return { completed: true, completedAt: progress.completedAt };
+  const materialProgressRows = await UserMaterialProgress.findAll({
+    where: { userId, materialId: materials.map((m) => m.id) },
+  });
+  const completedMaterialIds = new Set(materialProgressRows.filter((row) => row.completedAt).map((row) => row.materialId));
+  const chapterCompleted = materials.every((m) => completedMaterialIds.has(m.id));
+
+  if (chapterCompleted) {
+    const [chapterProgress] = await UserChapterProgress.findOrCreate({
+      where: { userId, chapterId: chapter.id },
+      defaults: { userId, chapterId: chapter.id, completedAt: new Date() },
+    });
+    if (!chapterProgress.completedAt) {
+      chapterProgress.completedAt = new Date();
+      await chapterProgress.save();
+    }
+  }
+
+  return { completed: true, completedAt: progress.completedAt, chapterCompleted };
 }

@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
-import { createUser, listUsers, setUserBanned } from '../services/user.service';
+import { createUser, deleteUser, listUsers, setUserBanned } from '../services/user.service';
 
 export const createUserHandler = asyncHandler(async (req: Request, res: Response) => {
   const { user, tempPassword } = await createUser(req.body);
@@ -26,4 +26,9 @@ export const banUserHandler = asyncHandler(async (req: Request, res: Response) =
 export const unbanUserHandler = asyncHandler(async (req: Request, res: Response) => {
   const user = await setUserBanned(req.params.id, req.user!.id, false);
   res.json(user);
+});
+
+export const deleteUserHandler = asyncHandler(async (req: Request, res: Response) => {
+  await deleteUser(req.params.id, req.user!.id);
+  res.status(204).send();
 });

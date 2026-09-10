@@ -71,6 +71,21 @@ export async function listUsers(params: { page: number; pageSize: number; q?: st
   };
 }
 
+export async function deleteUser(targetId: string, requesterId: string) {
+  if (targetId === requesterId) {
+    throw ApiError.badRequest('You cannot delete your own account.');
+  }
+
+  const user = await User.findByPk(targetId);
+  if (!user) {
+    throw ApiError.notFound('User not found.');
+  }
+
+  // practice_sessions and user_chapter_progress rows CASCADE on userId, so
+  // this also removes the user's practice history and chapter progress.
+  await user.destroy();
+}
+
 export async function setUserBanned(targetId: string, requesterId: string, banned: boolean) {
   if (targetId === requesterId && banned) {
     throw ApiError.badRequest('You cannot ban your own account.');
