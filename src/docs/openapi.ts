@@ -982,8 +982,20 @@ export const openApiDocument = {
           sessionsThisWeek: { type: 'integer' },
           averageScoreThisWeek: { type: 'integer', nullable: true },
           totalSessions: { type: 'integer' },
+          averageScore: { type: 'integer', nullable: true, description: 'Average overallScore across every session the caller has ever recorded.' },
+          completedModules: { type: 'integer', description: 'Modules where every chapter is completed and the exam is passed.' },
+          passedExams: { type: 'integer' },
         },
-        required: ['lastScore', 'lastSessionAt', 'sessionsThisWeek', 'averageScoreThisWeek', 'totalSessions'],
+        required: [
+          'lastScore',
+          'lastSessionAt',
+          'sessionsThisWeek',
+          'averageScoreThisWeek',
+          'totalSessions',
+          'averageScore',
+          'completedModules',
+          'passedExams',
+        ],
       },
 
       PitchScenario: {

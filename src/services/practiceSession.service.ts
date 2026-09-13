@@ -55,10 +55,11 @@ export async function getOwnPracticeSession(userId: string, id: string) {
 export async function getOwnStatsSummary(userId: string) {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const [latest, total, recent] = await Promise.all([
+  const [latest, total, recent, scoreSum] = await Promise.all([
     PracticeSession.findOne({ where: { userId }, order: [['createdAt', 'DESC']] }),
     PracticeSession.count({ where: { userId } }),
     PracticeSession.findAll({ where: { userId, createdAt: { [Op.gte]: sevenDaysAgo } } }),
+    PracticeSession.sum('overallScore', { where: { userId } }),
   ]);
 
   const sessionsThisWeek = recent.length;
@@ -72,5 +73,8 @@ export async function getOwnStatsSummary(userId: string) {
     sessionsThisWeek,
     averageScoreThisWeek,
     totalSessions: total,
+    // Overall average across every session the user has ever recorded, not
+    // just the last 7 days (averageScoreThisWeek above).
+    averageScore: total ? Math.round((scoreSum ?? 0) / total) : null,
   };
 }

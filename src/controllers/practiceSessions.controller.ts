@@ -6,6 +6,7 @@ import {
   getOwnStatsSummary,
   listOwnPracticeSessions,
 } from '../services/practiceSession.service';
+import { getOwnModuleStats } from '../services/module.service';
 
 export const createPracticeSessionHandler = asyncHandler(async (req: Request, res: Response) => {
   const session = await createPracticeSession(req.user!.id, req.body);
@@ -28,6 +29,9 @@ export const getOwnPracticeSessionHandler = asyncHandler(async (req: Request, re
 });
 
 export const getOwnStatsSummaryHandler = asyncHandler(async (req: Request, res: Response) => {
-  const stats = await getOwnStatsSummary(req.user!.id);
-  res.json(stats);
+  const [stats, moduleStats] = await Promise.all([
+    getOwnStatsSummary(req.user!.id),
+    getOwnModuleStats(req.user!.id),
+  ]);
+  res.json({ ...stats, ...moduleStats });
 });

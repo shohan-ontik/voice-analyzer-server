@@ -138,6 +138,28 @@ export async function listModulesForUser(userId: string) {
   return attachProgress(modules, userId);
 }
 
+// A module only counts as completed once every chapter is completed AND its
+// exam is passed (mirrors the frontend's getModuleStatus in
+// app/lib/moduleProgress.ts) — completion isn't stored anywhere, it's
+// derived the same way module-by-module here.
+export async function getOwnModuleStats(userId: string) {
+  const modules = await listModulesForUser(userId);
+
+  let completedModules = 0;
+  let passedExams = 0;
+  for (const trainingModule of modules) {
+    if (trainingModule.exam?.passed) passedExams += 1;
+
+    const totalChapters = trainingModule.chapters.length;
+    const completedChapters = trainingModule.chapters.filter((c) => c.completedAt !== null).length;
+    if (totalChapters > 0 && completedChapters === totalChapters && trainingModule.exam?.passed) {
+      completedModules += 1;
+    }
+  }
+
+  return { completedModules, passedExams };
+}
+
 export async function getModuleForUser(slug: string, userId: string) {
   const trainingModule = await TrainingModule.findOne({
     where: { slug, isActive: true },
