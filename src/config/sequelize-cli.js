@@ -13,10 +13,13 @@ const shared = {
   url,
   dialect: 'postgres',
   logging: false,
+  ...(process.env.DB_SSL === 'true'
+    ? { dialectOptions: { ssl: { require: true, rejectUnauthorized: false } } }
+    : {}),
 };
 
 module.exports = {
   development: shared,
   test: shared,
-  production: { ...shared, dialectOptions: { ssl: { require: true, rejectUnauthorized: false } } },
+  production: shared,
 };

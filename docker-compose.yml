@@ -3,13 +3,36 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: voice_analyzer
-      POSTGRES_PASSWORD: voice_analyzer
-      POSTGRES_DB: voice_analyzer
+      POSTGRES_USER: ${POSTGRES_USER:-voice_analyzer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-voice_analyzer}
+      POSTGRES_DB: ${POSTGRES_DB:-voice_analyzer}
     ports:
       - '5433:5432'
     volumes:
       - voice_analyzer_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-voice_analyzer} -d ${POSTGRES_DB:-voice_analyzer}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Overrides .env's DATABASE_URL (which points at localhost:5433 for
+      # host-side tooling) so the app reaches Postgres over the compose network.
+      DATABASE_URL: postgres://${POSTGRES_USER:-voice_analyzer}:${POSTGRES_PASSWORD:-voice_analyzer}@postgres:5432/${POSTGRES_DB:-voice_analyzer}
+    ports:
+      - '${PORT:-4000}:4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - voice_analyzer_uploads:/app/storage/uploads
 
 volumes:
   voice_analyzer_pg_data:
+  voice_analyzer_uploads:
