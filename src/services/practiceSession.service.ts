@@ -3,6 +3,16 @@ import { PracticeSession } from '../models';
 import type { CategoryBreakdown, TranscriptSegment } from '../models/practiceSession.model';
 import { ApiError } from '../utils/ApiError';
 
+// A "pitch" is any practice session that isn't a graded exam attempt
+// (examId null) — ad-hoc /record practice and chapter roleplay practice
+// both count toward it.
+export const MAX_PITCHES_PER_MONTH = 18;
+
+function startOfCurrentMonth() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
 export async function createPracticeSession(
   userId: string,
   input: {
@@ -14,6 +24,13 @@ export async function createPracticeSession(
     transcript: TranscriptSegment[];
   }
 ) {
+  const pitchesThisMonth = await PracticeSession.count({
+    where: { userId, examId: null, createdAt: { [Op.gte]: startOfCurrentMonth() } },
+  });
+  if (pitchesThisMonth >= MAX_PITCHES_PER_MONTH) {
+    throw ApiError.badRequest(`You've reached the maximum of ${MAX_PITCHES_PER_MONTH} pitches for this month.`);
+  }
+
   return PracticeSession.create({
     userId,
     topicId: input.topicId ?? null,
@@ -54,12 +71,15 @@ export async function getOwnPracticeSession(userId: string, id: string) {
 
 export async function getOwnStatsSummary(userId: string) {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const startOfMonth = startOfCurrentMonth();
 
-  const [latest, total, recent, scoreSum] = await Promise.all([
+  const [latest, total, recent, scoreSum, pitchesThisMonth, totalPitchesEvaluated] = await Promise.all([
     PracticeSession.findOne({ where: { userId }, order: [['createdAt', 'DESC']] }),
     PracticeSession.count({ where: { userId } }),
     PracticeSession.findAll({ where: { userId, createdAt: { [Op.gte]: sevenDaysAgo } } }),
     PracticeSession.sum('overallScore', { where: { userId } }),
+    PracticeSession.count({ where: { userId, examId: null, createdAt: { [Op.gte]: startOfMonth } } }),
+    PracticeSession.count({ where: { userId, examId: null } }),
   ]);
 
   const sessionsThisWeek = recent.length;
@@ -76,5 +96,10 @@ export async function getOwnStatsSummary(userId: string) {
     // Overall average across every session the user has ever recorded, not
     // just the last 7 days (averageScoreThisWeek above).
     averageScore: total ? Math.round((scoreSum ?? 0) / total) : null,
+    // Pitches (non-exam sessions) remaining out of MAX_PITCHES_PER_MONTH for
+    // the current calendar month.
+    pitchesRemainingThisMonth: Math.max(0, MAX_PITCHES_PER_MONTH - pitchesThisMonth),
+    // Total pitches (non-exam sessions) the user has ever participated in.
+    totalPitchesEvaluated,
   };
 }

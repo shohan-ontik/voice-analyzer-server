@@ -422,14 +422,14 @@ export const openApiDocument = {
         tags: ['Practice Sessions'],
         summary: 'Save a scored practice session',
         description:
-          'The score itself is computed client-side (the voice-analyzer frontend calls Gemini directly) — this just persists the result against the caller.',
+          'The score itself is computed client-side (the voice-analyzer frontend calls Gemini directly) — this just persists the result against the caller. Rejects with 400 once the caller has recorded 18 pitches (non-exam sessions) in the current calendar month.',
         requestBody: {
           required: true,
           content: { 'application/json': { schema: { $ref: '#/components/schemas/CreatePracticeSessionRequest' } } },
         },
         responses: {
           201: { description: 'Saved.', content: { 'application/json': { schema: { $ref: '#/components/schemas/PracticeSession' } } } },
-          400: errorResponse('Invalid request body.'),
+          400: errorResponse('Invalid request body, or the monthly pitch cap (18) has been reached.'),
           401: errorResponse('Missing/invalid/expired token.'),
         },
       },
@@ -985,6 +985,14 @@ export const openApiDocument = {
           averageScore: { type: 'integer', nullable: true, description: 'Average overallScore across every session the caller has ever recorded.' },
           completedModules: { type: 'integer', description: 'Modules where every chapter is completed and the exam is passed.' },
           passedExams: { type: 'integer' },
+          pitchesRemainingThisMonth: {
+            type: 'integer',
+            description: 'Pitches (non-exam sessions) left this calendar month, out of a cap of 18.',
+          },
+          totalPitchesEvaluated: {
+            type: 'integer',
+            description: 'Total pitches (non-exam sessions) the caller has ever participated in.',
+          },
         },
         required: [
           'lastScore',
@@ -995,6 +1003,8 @@ export const openApiDocument = {
           'averageScore',
           'completedModules',
           'passedExams',
+          'pitchesRemainingThisMonth',
+          'totalPitchesEvaluated',
         ],
       },
 
