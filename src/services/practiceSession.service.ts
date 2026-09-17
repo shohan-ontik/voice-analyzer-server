@@ -1,5 +1,5 @@
 import { Op } from 'sequelize';
-import { PracticeSession } from '../models';
+import { Exam, PracticeSession } from '../models';
 import type { CategoryBreakdown, TranscriptSegment } from '../models/practiceSession.model';
 import { ApiError } from '../utils/ApiError';
 
@@ -7,6 +7,10 @@ import { ApiError } from '../utils/ApiError';
 // (examId null) — ad-hoc /record practice and chapter roleplay practice
 // both count toward it.
 export const MAX_PITCHES_PER_MONTH = 18;
+
+// Flat pass mark for pitch practice (no admin-configured mark like exams
+// have). Snapshotted onto the row at creation, same as an exam's passMark.
+export const PITCH_PRACTICE_PASS_MARK = 60;
 
 function startOfCurrentMonth() {
   const now = new Date();
@@ -17,6 +21,8 @@ export async function createPracticeSession(
   userId: string,
   input: {
     topicId?: string | null;
+    chapterId?: string | null;
+    examId?: string | null;
     topicName: string;
     overall: number;
     verdict: string;
@@ -24,16 +30,31 @@ export async function createPracticeSession(
     transcript: TranscriptSegment[];
   }
 ) {
-  const pitchesThisMonth = await PracticeSession.count({
-    where: { userId, examId: null, createdAt: { [Op.gte]: startOfCurrentMonth() } },
-  });
-  if (pitchesThisMonth >= MAX_PITCHES_PER_MONTH) {
-    throw ApiError.badRequest(`You've reached the maximum of ${MAX_PITCHES_PER_MONTH} pitches for this month.`);
+  const examId = input.examId ?? null;
+
+  let passMark = PITCH_PRACTICE_PASS_MARK;
+  if (examId === null) {
+    const pitchesThisMonth = await PracticeSession.count({
+      where: { userId, examId: null, createdAt: { [Op.gte]: startOfCurrentMonth() } },
+    });
+    if (pitchesThisMonth >= MAX_PITCHES_PER_MONTH) {
+      throw ApiError.badRequest(`You've reached the maximum of ${MAX_PITCHES_PER_MONTH} pitches for this month.`);
+    }
+  } else {
+    const exam = await Exam.findByPk(examId);
+    if (!exam) {
+      throw ApiError.notFound('Exam not found.');
+    }
+    passMark = exam.passMark;
   }
 
   return PracticeSession.create({
     userId,
     topicId: input.topicId ?? null,
+    chapterId: input.chapterId ?? null,
+    examId,
+    type: examId ? 'exam' : 'pitch_practice',
+    passMark,
     topicName: input.topicName,
     overallScore: input.overall,
     verdict: input.verdict,

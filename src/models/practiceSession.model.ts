@@ -19,6 +19,8 @@ export type TranscriptSegment = {
   kind: 'plain' | 'filler' | 'pronunciation';
 };
 
+export type PracticeSessionType = 'exam' | 'pitch_practice';
+
 export class PracticeSession extends Model<
   InferAttributes<PracticeSession>,
   InferCreationAttributes<PracticeSession>
@@ -33,9 +35,16 @@ export class PracticeSession extends Model<
   // chapter is later deleted — the session itself still stands as history.
   declare chapterId: CreationOptional<string | null>;
   // Set when this session is a graded exam attempt (mutually exclusive with
-  // chapterId in practice, though not DB-enforced). Whether it counts as a
-  // "pass" is derived by comparing overallScore to Exam.passMark, not stored.
+  // chapterId in practice, though not DB-enforced).
   declare examId: CreationOptional<string | null>;
+  // Snapshotted at creation from examId (mirrors it, kept as its own column
+  // so callers can filter/group without a null check on examId).
+  declare type: PracticeSessionType;
+  // Snapshot of the pass mark this attempt was judged against: the exam's
+  // Exam.passMark at the time for a graded attempt, or the flat pitch-practice
+  // pass mark otherwise. Stored per-row so a later admin change to an exam's
+  // passMark doesn't retroactively change whether a past attempt passed.
+  declare passMark: number;
   declare overallScore: number;
   declare verdict: string;
   declare categories: CategoryBreakdown[];
@@ -72,6 +81,14 @@ export function initPracticeSessionModel(sequelize: Sequelize) {
         type: DataTypes.UUID,
         allowNull: true,
       },
+      type: {
+        type: DataTypes.ENUM('exam', 'pitch_practice'),
+        allowNull: false,
+      },
+      passMark: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
       overallScore: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -100,6 +117,7 @@ export function initPracticeSessionModel(sequelize: Sequelize) {
         { fields: ['topicId'] },
         { fields: ['chapterId'] },
         { fields: ['examId'] },
+        { fields: ['type'] },
       ],
     }
   );

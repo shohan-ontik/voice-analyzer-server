@@ -15,6 +15,11 @@ const transcriptSegmentSchema = z.object({
 export const createPracticeSessionSchema = z.object({
   body: z.object({
     topicId: z.string().uuid().nullable().optional(),
+    // Mutually exclusive with each other: set one when this session is a
+    // chapter roleplay practice or a graded module exam attempt. Both left
+    // out means an ad-hoc /record pitch practice.
+    chapterId: z.string().uuid().nullable().optional(),
+    examId: z.string().uuid().nullable().optional(),
     topicName: z.string().min(1),
     overall: z.number().min(0).max(100),
     verdict: z.string(),
