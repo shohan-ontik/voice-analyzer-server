@@ -6,7 +6,11 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { hashPassword, signAccessToken, verifyPassword } from '../services/auth.service';
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
-  const { identifier, password } = req.body as { identifier: string; password: string };
+  const { identifier, password, rememberMe } = req.body as {
+    identifier: string;
+    password: string;
+    rememberMe?: boolean;
+  };
   const normalizedIdentifier = identifier.trim().toLowerCase();
 
   const user = await User.findOne({
@@ -27,7 +31,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   }
   await user.save();
 
-  const accessToken = signAccessToken(user);
+  const accessToken = signAccessToken(user, rememberMe === true);
   res.json({ accessToken, user: user.toSafeJSON(), isFirstLogin });
 });
 

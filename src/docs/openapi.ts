@@ -857,6 +857,10 @@ export const openApiDocument = {
         properties: {
           identifier: { type: 'string', description: 'Username or phone number.' },
           password: { type: 'string' },
+          rememberMe: {
+            type: 'boolean',
+            description: 'When true, issues a 30-day access token instead of the default 8h one.',
+          },
         },
         required: ['identifier', 'password'],
       },

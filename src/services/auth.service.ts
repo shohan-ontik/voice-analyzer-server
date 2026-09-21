@@ -6,6 +6,7 @@ import type { User, UserRole } from '../models/user.model';
 
 const BCRYPT_COST = 12;
 const TOKEN_EXPIRY = '8h';
+const REMEMBER_ME_TOKEN_EXPIRY = '30d';
 
 export type AccessTokenPayload = {
   sub: string;
@@ -21,13 +22,15 @@ export function verifyPassword(plain: string, hash: string) {
   return bcrypt.compare(plain, hash);
 }
 
-export function signAccessToken(user: User) {
+export function signAccessToken(user: User, rememberMe = false) {
   const payload: AccessTokenPayload = {
     sub: user.id,
     role: user.role,
     tv: user.tokenVersion,
   };
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+  return jwt.sign(payload, env.JWT_SECRET, {
+    expiresIn: rememberMe ? REMEMBER_ME_TOKEN_EXPIRY : TOKEN_EXPIRY,
+  });
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
