@@ -6,24 +6,25 @@ const { v4: uuidv4 } = require('uuid');
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface) {
-    const email = (process.env.SEED_ADMIN_EMAIL || '').trim().toLowerCase();
+    const username = (process.env.SEED_ADMIN_USERNAME || '').trim().toLowerCase();
+    const phone = (process.env.SEED_ADMIN_PHONE || '').trim();
     const name = process.env.SEED_ADMIN_NAME || 'Admin';
     const password = process.env.SEED_ADMIN_PASSWORD;
 
-    if (!email || !password) {
+    if (!username || !password) {
       console.warn(
-        'Skipping admin seed: SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD must be set in the environment.'
+        'Skipping admin seed: SEED_ADMIN_USERNAME and SEED_ADMIN_PASSWORD must be set in the environment.'
       );
       return;
     }
 
     const [existing] = await queryInterface.sequelize.query(
-      'SELECT id FROM users WHERE email = :email LIMIT 1',
-      { replacements: { email } }
+      'SELECT id FROM users WHERE username = :username LIMIT 1',
+      { replacements: { username } }
     );
 
     if (existing.length > 0) {
-      console.log(`Admin seed skipped: ${email} already exists.`);
+      console.log(`Admin seed skipped: ${username} already exists.`);
       return;
     }
 
@@ -32,7 +33,8 @@ module.exports = {
     await queryInterface.bulkInsert('users', [
       {
         id: uuidv4(),
-        email,
+        username,
+        phone: phone || null,
         name,
         passwordHash,
         role: 'admin',
@@ -45,12 +47,12 @@ module.exports = {
       },
     ]);
 
-    console.log(`Seeded admin user: ${email}`);
+    console.log(`Seeded admin user: ${username}`);
   },
 
   async down(queryInterface) {
-    const email = (process.env.SEED_ADMIN_EMAIL || '').trim().toLowerCase();
-    if (!email) return;
-    await queryInterface.bulkDelete('users', { email });
+    const username = (process.env.SEED_ADMIN_USERNAME || '').trim().toLowerCase();
+    if (!username) return;
+    await queryInterface.bulkDelete('users', { username });
   },
 };

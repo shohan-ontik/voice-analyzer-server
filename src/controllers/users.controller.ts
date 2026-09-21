@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
-import { createUser, deleteUser, listUsers, setUserBanned } from '../services/user.service';
+import { createUser, deleteUser, listUsers, resetUserPassword, setUserBanned } from '../services/user.service';
 
 export const createUserHandler = asyncHandler(async (req: Request, res: Response) => {
   const { user, tempPassword } = await createUser(req.body);
@@ -16,6 +16,11 @@ export const listUsersHandler = asyncHandler(async (req: Request, res: Response)
   };
   const result = await listUsers({ page, pageSize, q, isBanned });
   res.json(result);
+});
+
+export const resetUserPasswordHandler = asyncHandler(async (req: Request, res: Response) => {
+  const { user, tempPassword } = await resetUserPassword(req.params.id);
+  res.json({ ...user.toSafeJSON(), tempPassword });
 });
 
 export const banUserHandler = asyncHandler(async (req: Request, res: Response) => {

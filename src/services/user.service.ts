@@ -4,7 +4,8 @@ import { ApiError } from '../utils/ApiError';
 import { generateTempPassword, hashPassword } from './auth.service';
 
 export async function createUser(input: {
-  email: string;
+  username: string;
+  phone: string;
   name: string;
   role?: 'user' | 'admin';
   tempPassword?: string;
@@ -12,10 +13,17 @@ export async function createUser(input: {
   department?: string;
   jobTitle?: string;
 }) {
-  const email = input.email.trim().toLowerCase();
-  const existing = await User.findOne({ where: { email } });
-  if (existing) {
-    throw ApiError.conflict('A user with this email already exists.');
+  const username = input.username.trim().toLowerCase();
+  const phone = input.phone.trim();
+
+  const existingUsername = await User.findOne({ where: { username } });
+  if (existingUsername) {
+    throw ApiError.conflict('A user with this username already exists.');
+  }
+
+  const existingPhone = await User.findOne({ where: { phone } });
+  if (existingPhone) {
+    throw ApiError.conflict('A user with this phone number already exists.');
   }
 
   if (input.employeeId) {
@@ -29,7 +37,8 @@ export async function createUser(input: {
   const passwordHash = await hashPassword(tempPassword);
 
   const user = await User.create({
-    email,
+    username,
+    phone,
     name: input.name,
     passwordHash,
     role: input.role ?? 'user',
@@ -47,7 +56,8 @@ export async function listUsers(params: { page: number; pageSize: number; q?: st
   const where: any = {};
   if (params.q) {
     where[Op.or] = [
-      { email: { [Op.iLike]: `%${params.q}%` } },
+      { username: { [Op.iLike]: `%${params.q}%` } },
+      { phone: { [Op.iLike]: `%${params.q}%` } },
       { name: { [Op.iLike]: `%${params.q}%` } },
       { employeeId: { [Op.iLike]: `%${params.q}%` } },
     ];
@@ -84,6 +94,22 @@ export async function deleteUser(targetId: string, requesterId: string) {
   // practice_sessions and user_chapter_progress rows CASCADE on userId, so
   // this also removes the user's practice history and chapter progress.
   await user.destroy();
+}
+
+export async function resetUserPassword(targetId: string) {
+  const user = await User.findByPk(targetId);
+  if (!user) {
+    throw ApiError.notFound('User not found.');
+  }
+
+  const tempPassword = generateTempPassword();
+  user.passwordHash = await hashPassword(tempPassword);
+  user.mustChangePassword = true;
+  // Invalidate any sessions issued under the old password.
+  user.tokenVersion += 1;
+  await user.save();
+
+  return { user, tempPassword };
 }
 
 export async function setUserBanned(targetId: string, requesterId: string, banned: boolean) {

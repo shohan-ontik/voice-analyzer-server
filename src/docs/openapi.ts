@@ -83,7 +83,7 @@ export const openApiDocument = {
     '/auth/login': {
       post: {
         tags: ['Auth'],
-        summary: 'Log in with email + password',
+        summary: 'Log in with username/phone + password',
         security: [],
         requestBody: {
           required: true,
@@ -95,7 +95,7 @@ export const openApiDocument = {
             content: { 'application/json': { schema: { $ref: '#/components/schemas/LoginResponse' } } },
           },
           400: errorResponse('Invalid request body.'),
-          401: errorResponse('Invalid email or password.'),
+          401: errorResponse('Invalid username/phone or password.'),
           403: errorResponse('This account has been suspended.'),
         },
       },
@@ -146,7 +146,7 @@ export const openApiDocument = {
           400: errorResponse('Invalid request body.'),
           401: errorResponse('Missing/invalid/expired token.'),
           403: errorResponse('Caller is not an admin.'),
-          409: errorResponse('A user with this email or employee ID already exists.'),
+          409: errorResponse('A user with this username, phone number, or employee ID already exists.'),
         },
       },
       get: {
@@ -156,7 +156,7 @@ export const openApiDocument = {
         parameters: [
           page.page,
           page.pageSize,
-          { name: 'q', in: 'query', description: 'Case-insensitive match against email, name, or employee ID.', schema: { type: 'string' } },
+          { name: 'q', in: 'query', description: 'Case-insensitive match against username, phone, name, or employee ID.', schema: { type: 'string' } },
           { name: 'isBanned', in: 'query', schema: { type: 'boolean' } },
         ],
         responses: {
@@ -175,6 +175,24 @@ export const openApiDocument = {
           },
           401: errorResponse('Missing/invalid/expired token.'),
           403: errorResponse('Caller is not an admin.'),
+        },
+      },
+    },
+    '/admin/users/{id}/reset-password': {
+      post: {
+        tags: ['Admin: Users'],
+        summary: "Reset a user's password",
+        description:
+          "Admin only. Generates a new one-time temporary password (shown to the admin exactly once), forces a password change on next login, and invalidates the user's existing access tokens.",
+        parameters: [{ $ref: '#/components/parameters/UserId' }],
+        responses: {
+          200: {
+            description: 'Password reset.',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateUserResponse' } } },
+          },
+          401: errorResponse('Missing/invalid/expired token.'),
+          403: errorResponse('Caller is not an admin.'),
+          404: errorResponse('User not found.'),
         },
       },
     },
@@ -422,14 +440,14 @@ export const openApiDocument = {
         tags: ['Practice Sessions'],
         summary: 'Save a scored practice session',
         description:
-          'The score itself is computed client-side (the voice-analyzer frontend calls Gemini directly) — this just persists the result against the caller. Rejects with 400 once the caller has recorded 18 pitches (non-exam sessions) in the current calendar month.',
+          'The score itself is computed client-side (the voice-analyzer frontend calls Gemini directly) — this just persists the result against the caller. Rejects with 400 once the caller has recorded 125 pitches (non-exam sessions) in the current calendar month.',
         requestBody: {
           required: true,
           content: { 'application/json': { schema: { $ref: '#/components/schemas/CreatePracticeSessionRequest' } } },
         },
         responses: {
           201: { description: 'Saved.', content: { 'application/json': { schema: { $ref: '#/components/schemas/PracticeSession' } } } },
-          400: errorResponse('Invalid request body, or the monthly pitch cap (18) has been reached.'),
+          400: errorResponse('Invalid request body, or the monthly pitch cap (125) has been reached.'),
           401: errorResponse('Missing/invalid/expired token.'),
         },
       },
@@ -818,28 +836,38 @@ export const openApiDocument = {
         description: "Mirrors User#toSafeJSON() — never includes passwordHash or tokenVersion.",
         properties: {
           id: { type: 'string', format: 'uuid' },
-          email: { type: 'string', format: 'email' },
+          username: { type: 'string' },
+          phone: { type: 'string', nullable: true },
+          email: { type: 'string', format: 'email', nullable: true },
           name: { type: 'string' },
           role: { type: 'string', enum: ['user', 'admin'] },
           isBanned: { type: 'boolean' },
           mustChangePassword: { type: 'boolean' },
           lastLoginAt: { type: 'string', format: 'date-time', nullable: true },
+          firstLoginAt: { type: 'string', format: 'date-time', nullable: true },
           employeeId: { type: 'string', nullable: true },
           department: { type: 'string', nullable: true },
           jobTitle: { type: 'string', nullable: true },
           createdAt: { type: 'string', format: 'date-time' },
         },
-        required: ['id', 'email', 'name', 'role', 'isBanned', 'mustChangePassword', 'lastLoginAt', 'employeeId', 'department', 'jobTitle', 'createdAt'],
+        required: ['id', 'username', 'name', 'role', 'isBanned', 'mustChangePassword', 'lastLoginAt', 'firstLoginAt', 'employeeId', 'department', 'jobTitle', 'createdAt'],
       },
       LoginRequest: {
         type: 'object',
-        properties: { email: { type: 'string', format: 'email' }, password: { type: 'string' } },
-        required: ['email', 'password'],
+        properties: {
+          identifier: { type: 'string', description: 'Username or phone number.' },
+          password: { type: 'string' },
+        },
+        required: ['identifier', 'password'],
       },
       LoginResponse: {
         type: 'object',
-        properties: { accessToken: { type: 'string' }, user: { $ref: '#/components/schemas/AppUser' } },
-        required: ['accessToken', 'user'],
+        properties: {
+          accessToken: { type: 'string' },
+          user: { $ref: '#/components/schemas/AppUser' },
+          isFirstLogin: { type: 'boolean', description: "True only on the user's very first successful login." },
+        },
+        required: ['accessToken', 'user', 'isFirstLogin'],
       },
       ChangePasswordRequest: {
         type: 'object',
@@ -849,7 +877,8 @@ export const openApiDocument = {
       CreateUserRequest: {
         type: 'object',
         properties: {
-          email: { type: 'string', format: 'email' },
+          username: { type: 'string', minLength: 3, maxLength: 64 },
+          phone: { type: 'string', minLength: 7, maxLength: 32 },
           name: { type: 'string', minLength: 1, maxLength: 255 },
           role: { type: 'string', enum: ['user', 'admin'], default: 'user' },
           tempPassword: { type: 'string', minLength: 8, description: 'Auto-generated if omitted.' },
@@ -857,7 +886,7 @@ export const openApiDocument = {
           department: { type: 'string', maxLength: 255 },
           jobTitle: { type: 'string', maxLength: 255 },
         },
-        required: ['email', 'name'],
+        required: ['username', 'phone', 'name'],
       },
       CreateUserResponse: {
         allOf: [
@@ -987,7 +1016,7 @@ export const openApiDocument = {
           passedExams: { type: 'integer' },
           pitchesRemainingThisMonth: {
             type: 'integer',
-            description: 'Pitches (non-exam sessions) left this calendar month, out of a cap of 18.',
+            description: 'Pitches (non-exam sessions) left this calendar month, out of a cap of 125.',
           },
           totalPitchesEvaluated: {
             type: 'integer',

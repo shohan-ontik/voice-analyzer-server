@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import type { Request, Response } from 'express';
 import { User } from '../models';
 import { ApiError } from '../utils/ApiError';
@@ -5,21 +6,29 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { hashPassword, signAccessToken, verifyPassword } from '../services/auth.service';
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password } = req.body as { email: string; password: string };
+  const { identifier, password } = req.body as { identifier: string; password: string };
+  const normalizedIdentifier = identifier.trim().toLowerCase();
 
-  const user = await User.findOne({ where: { email: email.trim().toLowerCase() } });
+  const user = await User.findOne({
+    where: { [Op.or]: [{ username: normalizedIdentifier }, { phone: identifier.trim() }] },
+  });
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
-    throw ApiError.unauthorized('Invalid email or password.');
+    throw ApiError.unauthorized('Invalid username/phone or password.');
   }
   if (user.isBanned) {
     throw ApiError.forbidden('This account has been suspended.');
   }
 
-  user.lastLoginAt = new Date();
+  const isFirstLogin = user.firstLoginAt === null;
+  const now = new Date();
+  user.lastLoginAt = now;
+  if (isFirstLogin) {
+    user.firstLoginAt = now;
+  }
   await user.save();
 
   const accessToken = signAccessToken(user);
-  res.json({ accessToken, user: user.toSafeJSON() });
+  res.json({ accessToken, user: user.toSafeJSON(), isFirstLogin });
 });
 
 export const me = asyncHandler(async (req: Request, res: Response) => {

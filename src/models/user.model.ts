@@ -4,7 +4,9 @@ export type UserRole = 'user' | 'admin';
 
 export class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   declare id: CreationOptional<string>;
-  declare email: string;
+  declare username: string;
+  declare phone: CreationOptional<string | null>;
+  declare email: CreationOptional<string | null>;
   declare name: string;
   declare passwordHash: string;
   declare role: UserRole;
@@ -12,6 +14,7 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
   declare tokenVersion: CreationOptional<number>;
   declare mustChangePassword: CreationOptional<boolean>;
   declare lastLoginAt: CreationOptional<Date | null>;
+  declare firstLoginAt: CreationOptional<Date | null>;
   declare employeeId: CreationOptional<string | null>;
   declare department: CreationOptional<string | null>;
   declare jobTitle: CreationOptional<string | null>;
@@ -21,12 +24,15 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
   toSafeJSON() {
     return {
       id: this.id,
+      username: this.username,
+      phone: this.phone,
       email: this.email,
       name: this.name,
       role: this.role,
       isBanned: this.isBanned,
       mustChangePassword: this.mustChangePassword,
       lastLoginAt: this.lastLoginAt,
+      firstLoginAt: this.firstLoginAt,
       employeeId: this.employeeId,
       department: this.department,
       jobTitle: this.jobTitle,
@@ -43,9 +49,19 @@ export function initUserModel(sequelize: Sequelize) {
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
       },
+      username: {
+        type: DataTypes.STRING(64),
+        allowNull: true,
+        unique: true,
+      },
+      phone: {
+        type: DataTypes.STRING(32),
+        allowNull: true,
+        unique: true,
+      },
       email: {
         type: DataTypes.STRING(255),
-        allowNull: false,
+        allowNull: true,
         unique: true,
       },
       name: {
@@ -80,6 +96,10 @@ export function initUserModel(sequelize: Sequelize) {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      firstLoginAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
       employeeId: {
         type: DataTypes.STRING(64),
         allowNull: true,
@@ -104,6 +124,12 @@ export function initUserModel(sequelize: Sequelize) {
         beforeValidate: (user) => {
           if (user.email) {
             user.email = user.email.trim().toLowerCase();
+          }
+          if (user.username) {
+            user.username = user.username.trim().toLowerCase();
+          }
+          if (user.phone) {
+            user.phone = user.phone.trim();
           }
         },
       },

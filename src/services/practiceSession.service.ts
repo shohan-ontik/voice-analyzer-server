@@ -6,7 +6,7 @@ import { ApiError } from '../utils/ApiError';
 // A "pitch" is any practice session that isn't a graded exam attempt
 // (examId null) — ad-hoc /record practice and chapter roleplay practice
 // both count toward it.
-export const MAX_PITCHES_PER_MONTH = 18;
+export const MAX_PITCHES_PER_MONTH = 125;
 
 // Flat pass mark for pitch practice (no admin-configured mark like exams
 // have). Snapshotted onto the row at creation, same as an exam's passMark.
