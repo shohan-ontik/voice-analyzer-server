@@ -36,6 +36,49 @@ function unlinkUploadedFile(storageKey: string | null) {
   });
 }
 
+// Mirrors the frontend's getModuleProgressPercent (app/lib/moduleProgress.ts):
+// chapters make up 80% of the bar, split evenly across however many chapters
+// the module has, and each chapter's own share is in turn split evenly
+// across its materials. The final exam makes up the remaining 20%, earned
+// only once it's passed.
+function calculateModuleProgressPercent(
+  chapters: { completedAt: Date | null; materials: { completedAt: Date | null }[] }[],
+  examPassed: boolean
+): number {
+  const total = chapters.length;
+  const chapterShare = total === 0 ? 0 : 80 / total;
+
+  const chaptersPercent = chapters.reduce((sum, chapter) => {
+    const materialsTotal = chapter.materials.length;
+    const chapterFraction =
+      materialsTotal === 0
+        ? chapter.completedAt !== null
+          ? 1
+          : 0
+        : chapter.materials.filter((m) => m.completedAt !== null).length / materialsTotal;
+    return sum + chapterShare * chapterFraction;
+  }, 0);
+
+  return Math.round(chaptersPercent + (examPassed ? 20 : 0));
+}
+
+// The completedAt/materials shape both serializers feed into
+// calculateModuleProgressPercent — the list item doesn't need the rest of
+// each chapter's fields, so it's computed straight off the raw models
+// instead of via serializeModule's full chapter objects.
+function computeChapterCompletion(
+  trainingModule: TrainingModule,
+  completedAtByChapter: Map<string, Date>,
+  completedAtByMaterial: Map<string, Date>
+) {
+  return (trainingModule.chapters ?? []).map((chapter) => ({
+    completedAt: completedAtByChapter.get(chapter.id) ?? null,
+    materials: (chapter.materials ?? []).map((material) => ({
+      completedAt: completedAtByMaterial.get(material.id) ?? null,
+    })),
+  }));
+}
+
 function serializeModule(
   trainingModule: TrainingModule,
   completedAtByChapter: Map<string, Date>,
@@ -45,6 +88,27 @@ function serializeModule(
   const chapters = [...(trainingModule.chapters ?? [])].sort((a, b) => a.order - b.order);
   const exam = trainingModule.exam ?? null;
   const bestScore = exam ? (bestScoreByExam.get(exam.id) ?? null) : null;
+  const examPassed = bestScore !== null && exam !== null && bestScore >= exam.passMark;
+
+  const serializedChapters = chapters.map((chapter) => ({
+    id: chapter.id,
+    slug: chapter.slug,
+    title: chapter.title,
+    description: chapter.description,
+    order: chapter.order,
+    scenario: chapter.scenario,
+    materials: [...(chapter.materials ?? [])]
+      .sort((a, b) => a.order - b.order)
+      .map((material) => ({
+        id: material.id,
+        type: material.type,
+        title: material.title,
+        meta: material.meta,
+        filename: material.filename,
+        completedAt: completedAtByMaterial.get(material.id) ?? null,
+      })),
+    completedAt: completedAtByChapter.get(chapter.id) ?? null,
+  }));
 
   return {
     id: trainingModule.id,
@@ -53,25 +117,7 @@ function serializeModule(
     description: trainingModule.description,
     thumbnailUrl: trainingModule.thumbnailUrl,
     order: trainingModule.order,
-    chapters: chapters.map((chapter) => ({
-      id: chapter.id,
-      slug: chapter.slug,
-      title: chapter.title,
-      description: chapter.description,
-      order: chapter.order,
-      scenario: chapter.scenario,
-      materials: [...(chapter.materials ?? [])]
-        .sort((a, b) => a.order - b.order)
-        .map((material) => ({
-          id: material.id,
-          type: material.type,
-          title: material.title,
-          meta: material.meta,
-          filename: material.filename,
-          completedAt: completedAtByMaterial.get(material.id) ?? null,
-        })),
-      completedAt: completedAtByChapter.get(chapter.id) ?? null,
-    })),
+    chapters: serializedChapters,
     exam: exam && {
       id: exam.id,
       slug: exam.slug,
@@ -81,12 +127,95 @@ function serializeModule(
       passMark: exam.passMark,
       dueDate: exam.dueDate,
       bestScore,
-      passed: bestScore !== null && bestScore >= exam.passMark,
+      passed: examPassed,
     },
+    chapterCount: serializedChapters.length,
+    completedChapterCount: serializedChapters.filter((c) => c.completedAt !== null).length,
+    progressPercent: calculateModuleProgressPercent(serializedChapters, examPassed),
   };
 }
 
-async function attachProgress(modules: TrainingModule[], userId: string) {
+// The list endpoint (GET /modules) drops the full chapters/exam payload —
+// trainees only need aggregate counts and the overall percent there; the
+// per-chapter/material/exam detail is fetched separately per-module
+// (GET /modules/:slug, via serializeModule) once a trainee opens one.
+function serializeModuleListItem(
+  trainingModule: TrainingModule,
+  completedAtByChapter: Map<string, Date>,
+  completedAtByMaterial: Map<string, Date>,
+  bestScoreByExam: Map<string, number>
+) {
+  const chaptersCompletion = computeChapterCompletion(trainingModule, completedAtByChapter, completedAtByMaterial);
+  const exam = trainingModule.exam ?? null;
+  const bestScore = exam ? (bestScoreByExam.get(exam.id) ?? null) : null;
+  const examPassed = bestScore !== null && exam !== null && bestScore >= exam.passMark;
+
+  return {
+    id: trainingModule.id,
+    slug: trainingModule.slug,
+    title: trainingModule.title,
+    description: trainingModule.description,
+    thumbnailUrl: trainingModule.thumbnailUrl,
+    order: trainingModule.order,
+    chapterCount: chaptersCompletion.length,
+    completedChapterCount: chaptersCompletion.filter((c) => c.completedAt !== null).length,
+    progressPercent: calculateModuleProgressPercent(chaptersCompletion, examPassed),
+  };
+}
+
+// Mirrors the frontend's getExamStatus (app/lib/moduleProgress.ts): an exam
+// unlocks once every chapter in its module is completed, and stays "passed"
+// once a passing attempt exists. Once unlocked, an attempt that didn't reach
+// the pass mark shows as "failed" rather than reverting to "ready".
+function computeExamStatus(
+  examPassed: boolean,
+  bestScore: number | null,
+  totalChapters: number,
+  completedChapters: number
+): 'passed' | 'failed' | 'ready' | 'locked' {
+  if (examPassed) return 'passed';
+  if (totalChapters === 0 || completedChapters < totalChapters) return 'locked';
+  return bestScore !== null ? 'failed' : 'ready';
+}
+
+// Feeds the /exams page: one entry per module that has an exam, with the
+// exam's own data plus its unlock/pass status — modules without an exam are
+// skipped rather than returned with a null exam.
+function serializeModuleExamItem(
+  trainingModule: TrainingModule,
+  completedAtByChapter: Map<string, Date>,
+  completedAtByMaterial: Map<string, Date>,
+  bestScoreByExam: Map<string, number>
+) {
+  const exam = trainingModule.exam;
+  if (!exam) return null;
+
+  const chaptersCompletion = computeChapterCompletion(trainingModule, completedAtByChapter, completedAtByMaterial);
+  const totalChapters = chaptersCompletion.length;
+  const completedChapters = chaptersCompletion.filter((c) => c.completedAt !== null).length;
+
+  const bestScore = bestScoreByExam.get(exam.id) ?? null;
+  const passed = bestScore !== null && bestScore >= exam.passMark;
+  const status = computeExamStatus(passed, bestScore, totalChapters, completedChapters);
+
+  return {
+    moduleSlug: trainingModule.slug,
+    exam: {
+      id: exam.id,
+      slug: exam.slug,
+      title: exam.title,
+      moduleLabel: exam.moduleLabel,
+      scenario: exam.scenario,
+      passMark: exam.passMark,
+      dueDate: exam.dueDate,
+      bestScore,
+      passed,
+    },
+    status,
+  };
+}
+
+async function fetchProgressMaps(modules: TrainingModule[], userId: string) {
   const chapterIds = modules.flatMap((m) => (m.chapters ?? []).map((c) => c.id));
   const materialIds = modules.flatMap((m) => (m.chapters ?? []).flatMap((c) => (c.materials ?? []).map((mat) => mat.id)));
   const examIds = modules.map((m) => m.exam?.id).filter((id): id is string => Boolean(id));
@@ -120,7 +249,24 @@ async function attachProgress(modules: TrainingModule[], userId: string) {
     if (session.overallScore > prev) bestScoreByExam.set(session.examId, session.overallScore);
   }
 
+  return { completedAtByChapter, completedAtByMaterial, bestScoreByExam };
+}
+
+async function attachProgress(modules: TrainingModule[], userId: string) {
+  const { completedAtByChapter, completedAtByMaterial, bestScoreByExam } = await fetchProgressMaps(modules, userId);
   return modules.map((m) => serializeModule(m, completedAtByChapter, completedAtByMaterial, bestScoreByExam));
+}
+
+async function attachListProgress(modules: TrainingModule[], userId: string) {
+  const { completedAtByChapter, completedAtByMaterial, bestScoreByExam } = await fetchProgressMaps(modules, userId);
+  return modules.map((m) => serializeModuleListItem(m, completedAtByChapter, completedAtByMaterial, bestScoreByExam));
+}
+
+async function attachExamProgress(modules: TrainingModule[], userId: string) {
+  const { completedAtByChapter, completedAtByMaterial, bestScoreByExam } = await fetchProgressMaps(modules, userId);
+  return modules
+    .map((m) => serializeModuleExamItem(m, completedAtByChapter, completedAtByMaterial, bestScoreByExam))
+    .filter((item): item is NonNullable<typeof item> => item !== null);
 }
 
 const MODULE_INCLUDE = [
@@ -128,26 +274,37 @@ const MODULE_INCLUDE = [
   { model: Exam, as: 'exam' as const },
 ];
 
-export async function listModulesForUser(userId: string) {
-  const modules = await TrainingModule.findAll({
+async function fetchActiveModules() {
+  return TrainingModule.findAll({
     where: { isActive: true },
     include: MODULE_INCLUDE,
     order: [['order', 'ASC']],
   });
+}
 
-  return attachProgress(modules, userId);
+export async function listModulesForUser(userId: string) {
+  const modules = await fetchActiveModules();
+  return attachListProgress(modules, userId);
+}
+
+export async function listExamsForUser(userId: string) {
+  const modules = await fetchActiveModules();
+  return attachExamProgress(modules, userId);
 }
 
 // A module only counts as completed once every chapter is completed AND its
 // exam is passed (mirrors the frontend's getModuleStatus in
 // app/lib/moduleProgress.ts) — completion isn't stored anywhere, it's
-// derived the same way module-by-module here.
+// derived the same way module-by-module here. Uses the full (detail) shape
+// rather than listModulesForUser's slimmed-down list items, since it needs
+// each module's exam.passed.
 export async function getOwnModuleStats(userId: string) {
-  const modules = await listModulesForUser(userId);
+  const modules = await fetchActiveModules();
+  const detailedModules = await attachProgress(modules, userId);
 
   let completedModules = 0;
   let passedExams = 0;
-  for (const trainingModule of modules) {
+  for (const trainingModule of detailedModules) {
     if (trainingModule.exam?.passed) passedExams += 1;
 
     const totalChapters = trainingModule.chapters.length;

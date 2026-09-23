@@ -1,9 +1,14 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
-import { getModuleForUser, listModulesForUser, markMaterialComplete } from '../services/module.service';
+import { getModuleForUser, listExamsForUser, listModulesForUser, markMaterialComplete } from '../services/module.service';
 
 export const listModulesHandler = asyncHandler(async (req: Request, res: Response) => {
   const items = await listModulesForUser(req.user!.id);
+  res.json({ items });
+});
+
+export const listExamsHandler = asyncHandler(async (req: Request, res: Response) => {
+  const items = await listExamsForUser(req.user!.id);
   res.json({ items });
 });
 

@@ -489,7 +489,7 @@ export const openApiDocument = {
         summary: 'Get one of the caller\'s own practice sessions',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
         responses: {
-          200: { description: 'OK.', content: { 'application/json': { schema: { $ref: '#/components/schemas/PracticeSession' } } } },
+          200: { description: 'OK.', content: { 'application/json': { schema: { $ref: '#/components/schemas/PracticeSessionDetail' } } } },
           401: errorResponse('Missing/invalid/expired token.'),
           404: errorResponse('Practice session not found, or belongs to another user.'),
         },
@@ -499,14 +499,42 @@ export const openApiDocument = {
     '/modules': {
       get: {
         tags: ['Modules'],
-        summary: 'List active modules with the caller\'s progress',
-        description: 'Each chapter carries `completedAt` and the exam carries `bestScore`/`passed`, both derived for the calling user.',
+        summary: 'List active modules with the caller\'s aggregate progress',
+        description:
+          'A slimmed-down summary for the module list/home screens — no per-chapter or exam detail, just aggregate ' +
+          'chapter counts and the overall `progressPercent` (chapters 80%, split evenly per chapter then per ' +
+          "material within it, plus the exam's remaining 20% once passed). Fetch GET /modules/{slug} for one " +
+          "module's full chapters/materials/exam, or GET /modules/exams for every module's exam data.",
         responses: {
           200: {
             description: 'OK.',
             content: {
               'application/json': {
-                schema: { type: 'object', properties: { items: { type: 'array', items: { $ref: '#/components/schemas/TrainingModule' } } } },
+                schema: {
+                  type: 'object',
+                  properties: { items: { type: 'array', items: { $ref: '#/components/schemas/TrainingModuleSummary' } } },
+                },
+              },
+            },
+          },
+          401: errorResponse('Missing/invalid/expired token.'),
+        },
+      },
+    },
+    '/modules/exams': {
+      get: {
+        tags: ['Modules'],
+        summary: "List every module's exam with the caller's status",
+        description:
+          'One entry per active module that has an exam. `status` is derived the same way as the module detail ' +
+          "endpoint's exam status: `locked` until every chapter in the module is completed, then `ready` " +
+          '(no attempt yet), `failed` (attempted, best score below passMark), or `passed`.',
+        responses: {
+          200: {
+            description: 'OK.',
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { items: { type: 'array', items: { $ref: '#/components/schemas/ExamListItem' } } } },
               },
             },
           },
@@ -518,6 +546,7 @@ export const openApiDocument = {
       get: {
         tags: ['Modules'],
         summary: 'Get one active module with the caller\'s progress',
+        description: 'Each chapter carries `completedAt` and the exam carries `bestScore`/`passed`, both derived for the calling user.',
         parameters: [{ $ref: '#/components/parameters/ModuleSlug' }],
         responses: {
           200: { description: 'OK.', content: { 'application/json': { schema: { $ref: '#/components/schemas/TrainingModule' } } } },
@@ -1007,6 +1036,28 @@ export const openApiDocument = {
         },
         required: ['id', 'userId', 'topicId', 'topicName', 'overallScore', 'verdict', 'categories', 'transcript', 'createdAt', 'updatedAt'],
       },
+      PracticeSessionDetail: {
+        description: 'GET /practice-sessions/{id}\'s shape — the same fields as PracticeSession, plus the slugs needed to link back to this session\'s chapter/exam.',
+        allOf: [
+          { $ref: '#/components/schemas/PracticeSession' },
+          {
+            type: 'object',
+            properties: {
+              moduleSlug: {
+                type: 'string',
+                nullable: true,
+                description: 'Resolved from chapterId/examId — the module this session\'s chapter or exam belongs to. Null for an ad-hoc pitch-practice session.',
+              },
+              chapterSlug: {
+                type: 'string',
+                nullable: true,
+                description: 'Resolved from chapterId. Null for an exam attempt or ad-hoc pitch practice.',
+              },
+            },
+            required: ['moduleSlug', 'chapterSlug'],
+          },
+        ],
+      },
       StatsSummary: {
         type: 'object',
         properties: {
@@ -1153,8 +1204,64 @@ export const openApiDocument = {
           order: { type: 'integer' },
           chapters: { type: 'array', items: { $ref: '#/components/schemas/ModuleChapter' } },
           exam: { $ref: '#/components/schemas/ModuleExam' },
+          chapterCount: { type: 'integer', description: 'chapters.length — provided directly so callers don\'t need to derive it.' },
+          completedChapterCount: { type: 'integer', description: 'How many of chapters have a non-null completedAt.' },
+          progressPercent: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 100,
+            description: "Chapters make up 80% (split evenly per chapter, then per chapter's materials); the exam makes up the remaining 20% once passed.",
+          },
         },
-        required: ['id', 'slug', 'title', 'description', 'thumbnailUrl', 'order', 'chapters', 'exam'],
+        required: [
+          'id',
+          'slug',
+          'title',
+          'description',
+          'thumbnailUrl',
+          'order',
+          'chapters',
+          'exam',
+          'chapterCount',
+          'completedChapterCount',
+          'progressPercent',
+        ],
+      },
+      TrainingModuleSummary: {
+        type: 'object',
+        description: "GET /modules's item shape — the same progress math as TrainingModule, without the full chapters/exam payload.",
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          slug: { type: 'string' },
+          title: { type: 'string' },
+          description: { type: 'string' },
+          thumbnailUrl: { type: 'string', nullable: true },
+          order: { type: 'integer' },
+          chapterCount: { type: 'integer' },
+          completedChapterCount: { type: 'integer' },
+          progressPercent: { type: 'integer', minimum: 0, maximum: 100 },
+        },
+        required: [
+          'id',
+          'slug',
+          'title',
+          'description',
+          'thumbnailUrl',
+          'order',
+          'chapterCount',
+          'completedChapterCount',
+          'progressPercent',
+        ],
+      },
+      ExamListItem: {
+        type: 'object',
+        description: "GET /modules/exams's item shape.",
+        properties: {
+          moduleSlug: { type: 'string' },
+          exam: { $ref: '#/components/schemas/ModuleExam' },
+          status: { type: 'string', enum: ['passed', 'failed', 'ready', 'locked'] },
+        },
+        required: ['moduleSlug', 'exam', 'status'],
       },
 
       AdminModuleBase: {

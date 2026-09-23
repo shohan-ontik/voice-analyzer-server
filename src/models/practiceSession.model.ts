@@ -1,4 +1,14 @@
-import { DataTypes, Model, type CreationOptional, type InferAttributes, type InferCreationAttributes, type Sequelize } from 'sequelize';
+import {
+  DataTypes,
+  Model,
+  type CreationOptional,
+  type InferAttributes,
+  type InferCreationAttributes,
+  type NonAttribute,
+  type Sequelize,
+} from 'sequelize';
+import type { ModuleChapter } from './moduleChapter.model';
+import type { Exam } from './exam.model';
 
 // Mirrors app/lib/analysis.ts (`AnalysisResult`) in the voice-analyzer
 // frontend repo. Kept as a plain JSONB blob since it's fixed-shape per
@@ -51,6 +61,10 @@ export class PracticeSession extends Model<
   declare transcript: TranscriptSegment[];
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
+
+  // Only populated when eager-loaded via `include`.
+  declare chapter?: NonAttribute<ModuleChapter | null>;
+  declare exam?: NonAttribute<Exam | null>;
 }
 
 export function initPracticeSessionModel(sequelize: Sequelize) {

@@ -1,5 +1,5 @@
 import { Op } from 'sequelize';
-import { Exam, PracticeSession } from '../models';
+import { Exam, ModuleChapter, PracticeSession, TrainingModule } from '../models';
 import type { CategoryBreakdown, TranscriptSegment } from '../models/practiceSession.model';
 import { ApiError } from '../utils/ApiError';
 
@@ -82,12 +82,40 @@ export async function listOwnPracticeSessions(
   return { items: rows, total: count, page: params.page, pageSize: params.pageSize };
 }
 
+// Resolves where this session's "Practice Again" button should link back to
+// (the specific chapter's roleplay, or the module exam) without the caller
+// needing to cross-reference the full modules list — chapterId/examId alone
+// aren't enough to build a URL, since routes are keyed by module+chapter
+// slug, not id.
 export async function getOwnPracticeSession(userId: string, id: string) {
-  const session = await PracticeSession.findOne({ where: { id, userId } });
+  const session = await PracticeSession.findOne({
+    where: { id, userId },
+    include: [
+      {
+        model: ModuleChapter,
+        as: 'chapter',
+        attributes: ['slug'],
+        include: [{ model: TrainingModule, as: 'module', attributes: ['slug'] }],
+      },
+      {
+        model: Exam,
+        as: 'exam',
+        attributes: ['slug'],
+        include: [{ model: TrainingModule, as: 'module', attributes: ['slug'] }],
+      },
+    ],
+  });
   if (!session) {
     throw ApiError.notFound('Practice session not found.');
   }
-  return session;
+
+  const moduleSlug = session.chapter?.module?.slug ?? session.exam?.module?.slug ?? null;
+  const chapterSlug = session.chapter?.slug ?? null;
+
+  // Drop the nested chapter/exam associations from the wire payload — only
+  // the flat slugs above are what callers need.
+  const { chapter: _chapter, exam: _exam, ...rest } = session.toJSON() as Record<string, unknown>;
+  return { ...rest, moduleSlug, chapterSlug };
 }
 
 export async function getOwnStatsSummary(userId: string) {
