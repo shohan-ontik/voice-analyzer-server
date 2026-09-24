@@ -16,9 +16,10 @@ import {
   upsertExamForAdmin,
 } from '../services/module.service';
 
-export const listAdminModulesHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const items = await listModulesForAdmin();
-  res.json({ items });
+export const listAdminModulesHandler = asyncHandler(async (req: Request, res: Response) => {
+  const { page, pageSize } = req.query as unknown as { page: number; pageSize: number };
+  const result = await listModulesForAdmin({ page, pageSize });
+  res.json(result);
 });
 
 export const createModuleHandler = asyncHandler(async (req: Request, res: Response) => {

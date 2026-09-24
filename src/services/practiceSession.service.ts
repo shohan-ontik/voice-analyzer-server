@@ -79,7 +79,17 @@ export async function listOwnPracticeSessions(
     offset: (params.page - 1) * params.pageSize,
   });
 
-  return { items: rows, total: count, page: params.page, pageSize: params.pageSize };
+  const totalPages = Math.ceil(count / params.pageSize);
+
+  return {
+    items: rows,
+    page: params.page,
+    total: count,
+    pageSize: params.pageSize,
+    totalPages,
+    hasNext: params.page < totalPages,
+    hasPrev: params.page > 1,
+  };
 }
 
 // Resolves where this session's "Practice Again" button should link back to

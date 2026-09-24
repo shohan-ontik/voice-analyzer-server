@@ -73,11 +73,16 @@ export async function listUsers(params: { page: number; pageSize: number; q?: st
     offset: (params.page - 1) * params.pageSize,
   });
 
+  const totalPages = Math.ceil(count / params.pageSize);
+
   return {
     items: rows.map((u) => u.toSafeJSON()),
-    total: count,
     page: params.page,
+    total: count,
     pageSize: params.pageSize,
+    totalPages,
+    hasNext: params.page < totalPages,
+    hasPrev: params.page > 1,
   };
 }
 

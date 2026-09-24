@@ -167,7 +167,16 @@ export const openApiDocument = {
                 schema: {
                   allOf: [
                     { $ref: '#/components/schemas/PageInfo' },
-                    { type: 'object', properties: { items: { type: 'array', items: { $ref: '#/components/schemas/AppUser' } } } },
+                    {
+                      type: 'object',
+                      properties: {
+                        items: { type: 'array', items: { $ref: '#/components/schemas/AppUser' } },
+                        totalPages: { type: 'integer' },
+                        hasNext: { type: 'boolean' },
+                        hasPrev: { type: 'boolean' },
+                      },
+                      required: ['totalPages', 'hasNext', 'hasPrev'],
+                    },
                   ],
                 },
               },
@@ -463,7 +472,16 @@ export const openApiDocument = {
                 schema: {
                   allOf: [
                     { $ref: '#/components/schemas/PageInfo' },
-                    { type: 'object', properties: { items: { type: 'array', items: { $ref: '#/components/schemas/PracticeSession' } } } },
+                    {
+                      type: 'object',
+                      properties: {
+                        items: { type: 'array', items: { $ref: '#/components/schemas/PracticeSession' } },
+                        totalPages: { type: 'integer' },
+                        hasNext: { type: 'boolean' },
+                        hasPrev: { type: 'boolean' },
+                      },
+                      required: ['totalPages', 'hasNext', 'hasPrev'],
+                    },
                   ],
                 },
               },
@@ -505,14 +523,26 @@ export const openApiDocument = {
           'chapter counts and the overall `progressPercent` (chapters 80%, split evenly per chapter then per ' +
           "material within it, plus the exam's remaining 20% once passed). Fetch GET /modules/{slug} for one " +
           "module's full chapters/materials/exam, or GET /modules/exams for every module's exam data.",
+        parameters: [page.page, page.pageSize],
         responses: {
           200: {
             description: 'OK.',
             content: {
               'application/json': {
                 schema: {
-                  type: 'object',
-                  properties: { items: { type: 'array', items: { $ref: '#/components/schemas/TrainingModuleSummary' } } },
+                  allOf: [
+                    { $ref: '#/components/schemas/PageInfo' },
+                    {
+                      type: 'object',
+                      properties: {
+                        items: { type: 'array', items: { $ref: '#/components/schemas/TrainingModuleSummary' } },
+                        totalPages: { type: 'integer' },
+                        hasNext: { type: 'boolean' },
+                        hasPrev: { type: 'boolean' },
+                      },
+                      required: ['totalPages', 'hasNext', 'hasPrev'],
+                    },
+                  ],
                 },
               },
             },
@@ -529,12 +559,27 @@ export const openApiDocument = {
           'One entry per active module that has an exam. `status` is derived the same way as the module detail ' +
           "endpoint's exam status: `locked` until every chapter in the module is completed, then `ready` " +
           '(no attempt yet), `failed` (attempted, best score below passMark), or `passed`.',
+        parameters: [page.page, page.pageSize],
         responses: {
           200: {
             description: 'OK.',
             content: {
               'application/json': {
-                schema: { type: 'object', properties: { items: { type: 'array', items: { $ref: '#/components/schemas/ExamListItem' } } } },
+                schema: {
+                  allOf: [
+                    { $ref: '#/components/schemas/PageInfo' },
+                    {
+                      type: 'object',
+                      properties: {
+                        items: { type: 'array', items: { $ref: '#/components/schemas/ExamListItem' } },
+                        totalPages: { type: 'integer' },
+                        hasNext: { type: 'boolean' },
+                        hasPrev: { type: 'boolean' },
+                      },
+                      required: ['totalPages', 'hasNext', 'hasPrev'],
+                    },
+                  ],
+                },
               },
             },
           },
@@ -632,12 +677,27 @@ export const openApiDocument = {
         tags: ['Admin: Modules'],
         summary: 'List all modules (admin — includes inactive)',
         description: 'Admin only.',
+        parameters: [page.page, page.pageSize],
         responses: {
           200: {
             description: 'OK.',
             content: {
               'application/json': {
-                schema: { type: 'object', properties: { items: { type: 'array', items: { $ref: '#/components/schemas/AdminModuleSummary' } } } },
+                schema: {
+                  allOf: [
+                    { $ref: '#/components/schemas/PageInfo' },
+                    {
+                      type: 'object',
+                      properties: {
+                        items: { type: 'array', items: { $ref: '#/components/schemas/AdminModuleSummary' } },
+                        totalPages: { type: 'integer' },
+                        hasNext: { type: 'boolean' },
+                        hasPrev: { type: 'boolean' },
+                      },
+                      required: ['totalPages', 'hasNext', 'hasPrev'],
+                    },
+                  ],
+                },
               },
             },
           },

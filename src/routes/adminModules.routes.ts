@@ -21,6 +21,7 @@ import {
   createChapterSchema,
   createMaterialSchema,
   createModuleSchema,
+  listAdminModulesSchema,
   materialParamSchema,
   moduleIdParamSchema,
   updateChapterSchema,
@@ -32,7 +33,7 @@ export const adminModulesRouter = Router();
 
 adminModulesRouter.use(authenticate, requireAdmin);
 
-adminModulesRouter.get('/', listAdminModulesHandler);
+adminModulesRouter.get('/', validate(listAdminModulesSchema), listAdminModulesHandler);
 adminModulesRouter.post('/', validate(createModuleSchema), createModuleHandler);
 adminModulesRouter.get('/:id', validate(moduleIdParamSchema), getAdminModuleHandler);
 adminModulesRouter.patch('/:id', validate(updateModuleSchema), updateModuleHandler);

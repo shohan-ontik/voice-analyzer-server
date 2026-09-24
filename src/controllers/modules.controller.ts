@@ -3,13 +3,15 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { getModuleForUser, listExamsForUser, listModulesForUser, markMaterialComplete } from '../services/module.service';
 
 export const listModulesHandler = asyncHandler(async (req: Request, res: Response) => {
-  const items = await listModulesForUser(req.user!.id);
-  res.json({ items });
+  const { page, pageSize } = req.query as unknown as { page: number; pageSize: number };
+  const result = await listModulesForUser(req.user!.id, { page, pageSize });
+  res.json(result);
 });
 
 export const listExamsHandler = asyncHandler(async (req: Request, res: Response) => {
-  const items = await listExamsForUser(req.user!.id);
-  res.json({ items });
+  const { page, pageSize } = req.query as unknown as { page: number; pageSize: number };
+  const result = await listExamsForUser(req.user!.id, { page, pageSize });
+  res.json(result);
 });
 
 export const getModuleHandler = asyncHandler(async (req: Request, res: Response) => {

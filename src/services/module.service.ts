@@ -282,14 +282,60 @@ async function fetchActiveModules() {
   });
 }
 
-export async function listModulesForUser(userId: string) {
-  const modules = await fetchActiveModules();
-  return attachListProgress(modules, userId);
+export async function listModulesForUser(userId: string, params: { page: number; pageSize: number }) {
+  const { rows, count } = await TrainingModule.findAndCountAll({
+    where: { isActive: true },
+    include: MODULE_INCLUDE,
+    order: [['order', 'ASC']],
+    limit: params.pageSize,
+    offset: (params.page - 1) * params.pageSize,
+    // Avoids duplicate/undercounted rows from the hasMany `chapters` include.
+    distinct: true,
+  });
+
+  const items = await attachListProgress(rows, userId);
+  const totalPages = Math.ceil(count / params.pageSize);
+
+  return {
+    items,
+    page: params.page,
+    total: count,
+    pageSize: params.pageSize,
+    totalPages,
+    hasNext: params.page < totalPages,
+    hasPrev: params.page > 1,
+  };
 }
 
-export async function listExamsForUser(userId: string) {
-  const modules = await fetchActiveModules();
-  return attachExamProgress(modules, userId);
+export async function listExamsForUser(userId: string, params: { page: number; pageSize: number }) {
+  // Only modules that have an exam are returned (see serializeModuleExamItem),
+  // so the exam include is required (inner join) to make DB-level pagination
+  // and the total count line up with what's actually returned.
+  const { rows, count } = await TrainingModule.findAndCountAll({
+    where: { isActive: true },
+    include: [
+      { model: ModuleChapter, as: 'chapters', include: [{ model: LearningMaterial, as: 'materials' }] },
+      { model: Exam, as: 'exam', required: true },
+    ],
+    order: [['order', 'ASC']],
+    limit: params.pageSize,
+    offset: (params.page - 1) * params.pageSize,
+    // Avoids duplicate/undercounted rows from the hasMany `chapters` include.
+    distinct: true,
+  });
+
+  const items = await attachExamProgress(rows, userId);
+  const totalPages = Math.ceil(count / params.pageSize);
+
+  return {
+    items,
+    page: params.page,
+    total: count,
+    pageSize: params.pageSize,
+    totalPages,
+    hasNext: params.page < totalPages,
+    hasPrev: params.page > 1,
+  };
 }
 
 // A module only counts as completed once every chapter is completed AND its
@@ -340,8 +386,8 @@ function slugify(title: string) {
   return base || 'module';
 }
 
-export async function listModulesForAdmin() {
-  const modules = await TrainingModule.findAll({
+export async function listModulesForAdmin(params: { page: number; pageSize: number }) {
+  const { count, rows } = await TrainingModule.findAndCountAll({
     include: [
       { model: ModuleChapter, as: 'chapters', attributes: ['id'] },
       { model: Exam, as: 'exam', attributes: ['id'] },
@@ -350,9 +396,13 @@ export async function listModulesForAdmin() {
       ['order', 'ASC'],
       ['createdAt', 'DESC'],
     ],
+    limit: params.pageSize,
+    offset: (params.page - 1) * params.pageSize,
+    // Avoids duplicate/undercounted rows from the hasMany `chapters` include.
+    distinct: true,
   });
 
-  return modules.map((m) => ({
+  const items = rows.map((m) => ({
     id: m.id,
     slug: m.slug,
     title: m.title,
@@ -363,6 +413,18 @@ export async function listModulesForAdmin() {
     examCount: m.exam ? 1 : 0,
     updatedAt: m.updatedAt,
   }));
+
+  const totalPages = Math.ceil(count / params.pageSize);
+
+  return {
+    items,
+    page: params.page,
+    total: count,
+    pageSize: params.pageSize,
+    totalPages,
+    hasNext: params.page < totalPages,
+    hasPrev: params.page > 1,
+  };
 }
 
 export async function getModuleForAdmin(id: string) {

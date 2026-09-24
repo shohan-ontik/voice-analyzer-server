@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+export const listAdminModulesSchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().positive().default(1),
+    pageSize: z.coerce.number().int().positive().max(100).default(20),
+  }),
+});
+
 export const createModuleSchema = z.object({
   body: z.object({
     title: z.string().min(1).max(500),
