@@ -530,6 +530,12 @@ const MODULES = [
   },
 ];
 
+// Random exam due date 15–60 days (inclusive) from seed time.
+const randomDueDate = (from) => {
+  const days = 15 + Math.floor(Math.random() * 46);
+  return new Date(from.getTime() + days * 24 * 60 * 60 * 1000);
+};
+
 module.exports = {
   async up(queryInterface) {
     const [existing] = await queryInterface.sequelize.query('SELECT id FROM modules LIMIT 1');
@@ -566,7 +572,7 @@ module.exports = {
         moduleLabel: module.exam.moduleLabel,
         scenario: module.exam.scenario,
         passMark: module.exam.passMark,
-        dueDate: null,
+        dueDate: randomDueDate(now),
         createdAt: now,
         updatedAt: now,
       });

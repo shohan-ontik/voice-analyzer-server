@@ -558,8 +558,23 @@ export const openApiDocument = {
         description:
           'One entry per active module that has an exam. `status` is derived the same way as the module detail ' +
           "endpoint's exam status: `locked` until every chapter in the module is completed, then `ready` " +
-          '(no attempt yet), `failed` (attempted, best score below passMark), or `passed`.',
-        parameters: [page.page, page.pageSize],
+          '(no attempt yet), `failed` (attempted, best score below passMark), or `passed`.\n\n' +
+          'Sorted by module order by default. Pass `sortBy=dueDate` to sort by exam due date; exams with no ' +
+          'due date always come last.',
+        parameters: [
+          page.page,
+          page.pageSize,
+          {
+            name: 'sortBy',
+            in: 'query',
+            schema: { type: 'string', enum: ['order', 'dueDate'], default: 'order' },
+          },
+          {
+            name: 'sortOrder',
+            in: 'query',
+            schema: { type: 'string', enum: ['asc', 'desc'], default: 'asc' },
+          },
+        ],
         responses: {
           200: {
             description: 'OK.',

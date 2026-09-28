@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Op } from 'sequelize';
+import { Op, literal, type Order } from 'sequelize';
 import {
   Exam,
   LearningMaterial,
@@ -307,7 +307,24 @@ export async function listModulesForUser(userId: string, params: { page: number;
   };
 }
 
-export async function listExamsForUser(userId: string, params: { page: number; pageSize: number }) {
+export async function listExamsForUser(
+  userId: string,
+  params: { page: number; pageSize: number; sortBy: 'order' | 'dueDate'; sortOrder: 'asc' | 'desc' }
+) {
+  const direction = params.sortOrder === 'desc' ? 'DESC' : 'ASC';
+  // Module order breaks ties so pagination stays stable; exams without a
+  // due date sort last in either direction. dueDate is read through a
+  // correlated subquery because Sequelize only applies the ORDER BY to the
+  // outer query when the `chapters` include forces a paginated subquery,
+  // where the joined `exam` alias isn't in scope.
+  const order: Order =
+    params.sortBy === 'dueDate'
+      ? [
+          [literal('(SELECT "dueDate" FROM "exams" WHERE "exams"."moduleId" = "TrainingModule"."id")'), `${direction} NULLS LAST`],
+          ['order', 'ASC'],
+        ]
+      : [['order', direction]];
+
   // Only modules that have an exam are returned (see serializeModuleExamItem),
   // so the exam include is required (inner join) to make DB-level pagination
   // and the total count line up with what's actually returned.
@@ -317,7 +334,7 @@ export async function listExamsForUser(userId: string, params: { page: number; p
       { model: ModuleChapter, as: 'chapters', include: [{ model: LearningMaterial, as: 'materials' }] },
       { model: Exam, as: 'exam', required: true },
     ],
-    order: [['order', 'ASC']],
+    order,
     limit: params.pageSize,
     offset: (params.page - 1) * params.pageSize,
     // Avoids duplicate/undercounted rows from the hasMany `chapters` include.

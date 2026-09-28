@@ -7,7 +7,16 @@ export const listModulesSchema = z.object({
   }),
 });
 
-export const listExamsSchema = listModulesSchema;
+export const listExamsSchema = z.object({
+  query: listModulesSchema.shape.query.extend({
+    // `order` = the module's curriculum order (the default); `dueDate` =
+    // the exam's due date, with exams that have no due date always last.
+    sortBy: z.enum(['order', 'dueDate']).default('order'),
+    sortOrder: z.enum(['asc', 'desc']).default('asc'),
+  }),
+});
+
+export type ListExamsQuery = z.infer<typeof listExamsSchema>['query'];
 
 export const moduleSlugParamSchema = z.object({
   params: z.object({
