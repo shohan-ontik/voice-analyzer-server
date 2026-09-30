@@ -8,6 +8,8 @@ import { LearningMaterial, initLearningMaterialModel } from './learningMaterial.
 import { Exam, initExamModel } from './exam.model';
 import { UserChapterProgress, initUserChapterProgressModel } from './userChapterProgress.model';
 import { UserMaterialProgress, initUserMaterialProgressModel } from './userMaterialProgress.model';
+import { Notification, initNotificationModel } from './notification.model';
+import { UserNotificationRead, initUserNotificationReadModel } from './userNotificationRead.model';
 
 initUserModel(sequelize);
 initPracticeSessionModel(sequelize);
@@ -18,6 +20,8 @@ initLearningMaterialModel(sequelize);
 initExamModel(sequelize);
 initUserChapterProgressModel(sequelize);
 initUserMaterialProgressModel(sequelize);
+initNotificationModel(sequelize);
+initUserNotificationReadModel(sequelize);
 
 User.hasMany(PracticeSession, {
   foreignKey: 'userId',
@@ -117,6 +121,46 @@ PracticeSession.belongsTo(Exam, {
   as: 'exam',
 });
 
+Notification.belongsTo(TrainingModule, {
+  foreignKey: 'moduleId',
+  as: 'module',
+});
+TrainingModule.hasMany(Notification, {
+  foreignKey: 'moduleId',
+  as: 'notifications',
+  onDelete: 'CASCADE',
+});
+
+Notification.belongsTo(Exam, {
+  foreignKey: 'examId',
+  as: 'exam',
+});
+Exam.hasMany(Notification, {
+  foreignKey: 'examId',
+  as: 'notifications',
+  onDelete: 'CASCADE',
+});
+
+User.hasMany(UserNotificationRead, {
+  foreignKey: 'userId',
+  as: 'notificationReads',
+  onDelete: 'CASCADE',
+});
+UserNotificationRead.belongsTo(User, {
+  foreignKey: 'userId',
+  as: 'user',
+});
+
+Notification.hasMany(UserNotificationRead, {
+  foreignKey: 'notificationId',
+  as: 'reads',
+  onDelete: 'CASCADE',
+});
+UserNotificationRead.belongsTo(Notification, {
+  foreignKey: 'notificationId',
+  as: 'notification',
+});
+
 export {
   sequelize,
   User,
@@ -128,4 +172,6 @@ export {
   Exam,
   UserChapterProgress,
   UserMaterialProgress,
+  Notification,
+  UserNotificationRead,
 };

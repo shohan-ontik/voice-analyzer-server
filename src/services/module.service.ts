@@ -6,6 +6,7 @@ import {
   LearningMaterial,
   ModuleChapter,
   PracticeSession,
+  sequelize,
   TrainingModule,
   UserChapterProgress,
   UserMaterialProgress,
@@ -13,6 +14,7 @@ import {
 import type { LearningMaterialType } from '../models/learningMaterial.model';
 import type { ChapterScenario } from '../models/moduleChapter.model';
 import { ApiError } from '../utils/ApiError';
+import { createModulePublishedNotification } from './notification.service';
 import { UPLOAD_DIR } from '../utils/uploadPath';
 
 // Fallback only — the admin Module Editor auto-generates a real scenario
@@ -525,7 +527,8 @@ export async function updateModuleForAdmin(
   // assumes every module has at least one chapter and an exam (see
   // getModuleForUser) — block publishing until that's true instead of
   // letting trainees hit a broken module page.
-  if (patch.isActive === true && !trainingModule.isActive) {
+  const isBeingPublished = patch.isActive === true && !trainingModule.isActive;
+  if (isBeingPublished) {
     const hasChapters = (trainingModule.chapters ?? []).length > 0;
     if (!hasChapters || !trainingModule.exam) {
       throw ApiError.badRequest('Add at least one chapter and an exam before publishing this module.');
@@ -537,7 +540,15 @@ export async function updateModuleForAdmin(
   if (patch.thumbnailUrl !== undefined) trainingModule.thumbnailUrl = patch.thumbnailUrl;
   if (patch.isActive !== undefined) trainingModule.isActive = patch.isActive;
   if (patch.publishDate !== undefined) trainingModule.publishDate = patch.publishDate;
-  await trainingModule.save();
+
+  // Saved together with the notification so a module can't go live without
+  // its "new module" announcement (or the reverse).
+  await sequelize.transaction(async (transaction) => {
+    await trainingModule.save({ transaction });
+    if (isBeingPublished) {
+      await createModulePublishedNotification(trainingModule, transaction);
+    }
+  });
 
   return trainingModule;
 }

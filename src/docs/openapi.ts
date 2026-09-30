@@ -41,6 +41,7 @@ export const openApiDocument = {
     { name: 'Modules', description: 'Trainee-facing training modules, chapters, and exams.' },
     { name: 'Admin: Modules', description: 'Admin CRUD for modules, chapters, materials, and exams.' },
     { name: 'Media', description: 'Streams uploaded/demo learning-material files.' },
+    { name: 'Notifications', description: "The shared notification feed, with the caller's own read state." },
   ],
   security: bearerAuth,
   paths: {
@@ -509,6 +510,76 @@ export const openApiDocument = {
             },
           },
           401: errorResponse('Missing/invalid/expired token.'),
+        },
+      },
+    },
+    '/notifications': {
+      get: {
+        tags: ['Notifications'],
+        summary: 'List notifications for the caller, newest first',
+        description:
+          'Every user sees the same notifications (new module published, exam deadline approaching). ' +
+          '`isRead`/`readAt` and `unreadCount` are specific to the calling user. Sorted by `createdAt` descending.',
+        parameters: [page.page, page.pageSize],
+        responses: {
+          200: {
+            description: 'OK.',
+            content: {
+              'application/json': {
+                schema: {
+                  allOf: [
+                    { $ref: '#/components/schemas/PageInfo' },
+                    {
+                      type: 'object',
+                      properties: {
+                        items: { type: 'array', items: { $ref: '#/components/schemas/Notification' } },
+                        unreadCount: {
+                          type: 'integer',
+                          description: "Total notifications the caller hasn't read, across all pages.",
+                        },
+                        totalPages: { type: 'integer' },
+                        hasNext: { type: 'boolean' },
+                        hasPrev: { type: 'boolean' },
+                      },
+                      required: ['unreadCount', 'totalPages', 'hasNext', 'hasPrev'],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          401: errorResponse('Missing/invalid/expired token.'),
+        },
+      },
+    },
+    '/notifications/{id}/read': {
+      post: {
+        tags: ['Notifications'],
+        summary: 'Mark a notification as read for the caller',
+        description:
+          "Idempotent — marking an already-read notification keeps its original `readAt`. Only the caller's own " +
+          'read state changes; other users still see the notification as unread.',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          200: {
+            description: 'OK.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string', format: 'uuid' },
+                    isRead: { type: 'boolean', example: true },
+                    readAt: { type: 'string', format: 'date-time' },
+                  },
+                  required: ['id', 'isRead', 'readAt'],
+                },
+              },
+            },
+          },
+          400: errorResponse('`id` is not a valid UUID.'),
+          401: errorResponse('Missing/invalid/expired token.'),
+          404: errorResponse('Notification not found.'),
         },
       },
     },
@@ -1219,6 +1290,23 @@ export const openApiDocument = {
           status: { type: 'string', enum: ['passed', 'failed', 'ready', 'locked'] },
         },
         required: ['moduleSlug', 'exam', 'status'],
+      },
+
+      Notification: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          type: { type: 'string', enum: ['module_published', 'exam_deadline'] },
+          title: { type: 'string' },
+          body: { type: 'string' },
+          moduleId: { type: 'string', format: 'uuid' },
+          moduleSlug: { type: 'string', nullable: true },
+          examId: { type: 'string', format: 'uuid', nullable: true },
+          isRead: { type: 'boolean' },
+          readAt: { type: 'string', format: 'date-time', nullable: true },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+        required: ['id', 'type', 'title', 'body', 'moduleId', 'isRead', 'createdAt'],
       },
 
       AdminModuleBase: {

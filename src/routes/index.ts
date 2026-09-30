@@ -9,6 +9,7 @@ import { scoreCategoriesRouter } from './scoreCategories.routes';
 import { modulesRouter } from './modules.routes';
 import { mediaRouter } from './media.routes';
 import { adminModulesRouter } from './adminModules.routes';
+import { notificationsRouter } from './notifications.routes';
 
 export const apiRouter = Router();
 
@@ -29,3 +30,4 @@ apiRouter.use('/practice-sessions', practiceSessionsRouter);
 apiRouter.use('/modules', modulesRouter);
 apiRouter.use('/media', mediaRouter);
 apiRouter.use('/admin/modules', adminModulesRouter);
+apiRouter.use('/notifications', notificationsRouter);
