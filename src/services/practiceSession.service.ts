@@ -20,7 +20,6 @@ function startOfCurrentMonth() {
 export async function createPracticeSession(
   userId: string,
   input: {
-    topicId?: string | null;
     chapterId?: string | null;
     examId?: string | null;
     topicName: string;
@@ -50,7 +49,6 @@ export async function createPracticeSession(
 
   return PracticeSession.create({
     userId,
-    topicId: input.topicId ?? null,
     chapterId: input.chapterId ?? null,
     examId,
     type: examId ? 'exam' : 'pitch_practice',
@@ -65,12 +63,9 @@ export async function createPracticeSession(
 
 export async function listOwnPracticeSessions(
   userId: string,
-  params: { page: number; pageSize: number; topicId?: string }
+  params: { page: number; pageSize: number }
 ) {
-  const where: { userId: string; topicId?: string } = { userId };
-  if (params.topicId) {
-    where.topicId = params.topicId;
-  }
+  const where = { userId };
 
   const { rows, count } = await PracticeSession.findAndCountAll({
     where,

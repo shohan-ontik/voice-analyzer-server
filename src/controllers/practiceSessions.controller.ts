@@ -14,12 +14,11 @@ export const createPracticeSessionHandler = asyncHandler(async (req: Request, re
 });
 
 export const listOwnPracticeSessionsHandler = asyncHandler(async (req: Request, res: Response) => {
-  const { page, pageSize, topicId } = req.query as unknown as {
+  const { page, pageSize } = req.query as unknown as {
     page: number;
     pageSize: number;
-    topicId?: string;
   };
-  const result = await listOwnPracticeSessions(req.user!.id, { page, pageSize, topicId });
+  const result = await listOwnPracticeSessions(req.user!.id, { page, pageSize });
   res.json(result);
 });
 

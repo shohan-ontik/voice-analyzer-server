@@ -1,7 +1,6 @@
 import { sequelize } from '../config/database';
 import { User, initUserModel } from './user.model';
 import { PracticeSession, initPracticeSessionModel } from './practiceSession.model';
-import { Topic, initTopicModel } from './topic.model';
 import { ScoreCategory, initScoreCategoryModel } from './scoreCategory.model';
 import { TrainingModule, initModuleModel } from './module.model';
 import { ModuleChapter, initModuleChapterModel } from './moduleChapter.model';
@@ -12,7 +11,6 @@ import { UserMaterialProgress, initUserMaterialProgressModel } from './userMater
 
 initUserModel(sequelize);
 initPracticeSessionModel(sequelize);
-initTopicModel(sequelize);
 initScoreCategoryModel(sequelize);
 initModuleModel(sequelize);
 initModuleChapterModel(sequelize);
@@ -123,7 +121,6 @@ export {
   sequelize,
   User,
   PracticeSession,
-  Topic,
   ScoreCategory,
   TrainingModule,
   ModuleChapter,

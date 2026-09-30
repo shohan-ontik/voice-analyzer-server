@@ -36,7 +36,6 @@ export const openApiDocument = {
     { name: 'Auth', description: 'Login and the caller\'s own account.' },
     { name: 'Admin: Users', description: 'Admin-only user management.' },
     { name: 'Admin: Stats', description: 'Admin-only dashboard totals.' },
-    { name: 'Topics', description: 'Practice scenario topics (name + reference facts).' },
     { name: 'Score Categories', description: 'The rubric categories a pitch is scored against.' },
     { name: 'Practice Sessions', description: "The caller's own scored practice attempts." },
     { name: 'Modules', description: 'Trainee-facing training modules, chapters, and exams.' },
@@ -264,95 +263,6 @@ export const openApiDocument = {
       },
     },
 
-    '/admin/topics': {
-      post: {
-        tags: ['Topics'],
-        summary: 'Create a topic',
-        description: 'Admin only.',
-        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateTopicRequest' } } } },
-        responses: {
-          201: { description: 'Created.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Topic' } } } },
-          400: errorResponse('Invalid request body.'),
-          401: errorResponse('Missing/invalid/expired token.'),
-          403: errorResponse('Caller is not an admin.'),
-        },
-      },
-      get: {
-        tags: ['Topics'],
-        summary: 'List topics (admin — includes inactive)',
-        description: 'Admin only.',
-        parameters: [
-          page.page,
-          page.pageSize,
-          { name: 'q', in: 'query', description: 'Case-insensitive match against name.', schema: { type: 'string' } },
-          { name: 'isActive', in: 'query', schema: { type: 'boolean' } },
-        ],
-        responses: {
-          200: {
-            description: 'OK.',
-            content: {
-              'application/json': {
-                schema: {
-                  allOf: [
-                    { $ref: '#/components/schemas/PageInfo' },
-                    { type: 'object', properties: { items: { type: 'array', items: { $ref: '#/components/schemas/Topic' } } } },
-                  ],
-                },
-              },
-            },
-          },
-          401: errorResponse('Missing/invalid/expired token.'),
-          403: errorResponse('Caller is not an admin.'),
-        },
-      },
-    },
-    '/admin/topics/{id}': {
-      patch: {
-        tags: ['Topics'],
-        summary: 'Update a topic',
-        description: 'Admin only.',
-        parameters: [{ $ref: '#/components/parameters/TopicId' }],
-        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateTopicRequest' } } } },
-        responses: {
-          200: { description: 'Updated.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Topic' } } } },
-          400: errorResponse('Invalid request body.'),
-          401: errorResponse('Missing/invalid/expired token.'),
-          403: errorResponse('Caller is not an admin.'),
-          404: errorResponse('Topic not found.'),
-        },
-      },
-      delete: {
-        tags: ['Topics'],
-        summary: 'Delete a topic',
-        description: 'Admin only.',
-        parameters: [{ $ref: '#/components/parameters/TopicId' }],
-        responses: {
-          204: { description: 'Deleted.' },
-          401: errorResponse('Missing/invalid/expired token.'),
-          403: errorResponse('Caller is not an admin.'),
-          404: errorResponse('Topic not found.'),
-        },
-      },
-    },
-    '/topics': {
-      get: {
-        tags: ['Topics'],
-        summary: 'List active topics',
-        description: "Any authenticated user — the practice app's scenario picker. Active topics only, no admin fields.",
-        responses: {
-          200: {
-            description: 'OK.',
-            content: {
-              'application/json': {
-                schema: { type: 'object', properties: { items: { type: 'array', items: { $ref: '#/components/schemas/Topic' } } } },
-              },
-            },
-          },
-          401: errorResponse('Missing/invalid/expired token.'),
-        },
-      },
-    },
-
     '/admin/score-categories': {
       post: {
         tags: ['Score Categories'],
@@ -463,7 +373,7 @@ export const openApiDocument = {
       get: {
         tags: ['Practice Sessions'],
         summary: "List the caller's own practice sessions",
-        parameters: [page.page, page.pageSize, { name: 'topicId', in: 'query', schema: { type: 'string', format: 'uuid' } }],
+        parameters: [page.page, page.pageSize],
         responses: {
           200: {
             description: 'OK.',
@@ -897,7 +807,6 @@ export const openApiDocument = {
     },
     parameters: {
       UserId: { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
-      TopicId: { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
       ScoreCategoryId: { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
       ModuleId: { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
       ChapterId: { name: 'chapterId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
@@ -1018,31 +927,6 @@ export const openApiDocument = {
         required: ['totalUsers', 'bannedUsers', 'totalPracticeSessions', 'sessionsThisWeek'],
       },
 
-      Topic: {
-        type: 'object',
-        description: 'An admin-managed practice scenario: a display name plus the key facts (in Bangla) a pitch should cover — not a verbatim script.',
-        properties: {
-          id: { type: 'string', format: 'uuid' },
-          name: { type: 'string' },
-          passage: { type: 'string' },
-          isActive: { type: 'boolean' },
-        },
-        required: ['id', 'name', 'passage', 'isActive'],
-      },
-      CreateTopicRequest: {
-        type: 'object',
-        properties: { name: { type: 'string', minLength: 1, maxLength: 255 }, passage: { type: 'string', minLength: 1 } },
-        required: ['name', 'passage'],
-      },
-      UpdateTopicRequest: {
-        type: 'object',
-        properties: {
-          name: { type: 'string', minLength: 1, maxLength: 255 },
-          passage: { type: 'string', minLength: 1 },
-          isActive: { type: 'boolean' },
-        },
-      },
-
       ScoreCategory: {
         type: 'object',
         description: 'An admin-managed scoring rubric category the AI marks a pitch on (e.g. "Confidence", "Pacing").',
@@ -1084,7 +968,6 @@ export const openApiDocument = {
       CreatePracticeSessionRequest: {
         type: 'object',
         properties: {
-          topicId: { type: 'string', format: 'uuid', nullable: true },
           topicName: { type: 'string', minLength: 1 },
           overall: { type: 'number', minimum: 0, maximum: 100 },
           verdict: { type: 'string' },
@@ -1098,7 +981,6 @@ export const openApiDocument = {
         properties: {
           id: { type: 'string', format: 'uuid' },
           userId: { type: 'string', format: 'uuid' },
-          topicId: { type: 'string', format: 'uuid', nullable: true },
           topicName: { type: 'string' },
           chapterId: { type: 'string', format: 'uuid', nullable: true, description: 'Set when this session is a chapter roleplay attempt.' },
           examId: { type: 'string', format: 'uuid', nullable: true, description: 'Set when this session is a graded exam attempt.' },
@@ -1109,7 +991,7 @@ export const openApiDocument = {
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
         },
-        required: ['id', 'userId', 'topicId', 'topicName', 'overallScore', 'verdict', 'categories', 'transcript', 'createdAt', 'updatedAt'],
+        required: ['id', 'userId', 'topicName', 'overallScore', 'verdict', 'categories', 'transcript', 'createdAt', 'updatedAt'],
       },
       PracticeSessionDetail: {
         description: 'GET /practice-sessions/{id}\'s shape — the same fields as PracticeSession, plus the slugs needed to link back to this session\'s chapter/exam.',

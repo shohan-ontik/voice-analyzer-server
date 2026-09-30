@@ -37,9 +37,6 @@ export class PracticeSession extends Model<
 > {
   declare id: CreationOptional<string>;
   declare userId: string;
-  // Nullable: SET NULL if the topic is later deleted. `topicName` is a
-  // snapshot so history keeps reading correctly either way.
-  declare topicId: CreationOptional<string | null>;
   declare topicName: string;
   // Set when this session is a chapter roleplay practice. SET NULL if the
   // chapter is later deleted — the session itself still stands as history.
@@ -78,10 +75,6 @@ export function initPracticeSessionModel(sequelize: Sequelize) {
       userId: {
         type: DataTypes.UUID,
         allowNull: false,
-      },
-      topicId: {
-        type: DataTypes.UUID,
-        allowNull: true,
       },
       topicName: {
         type: DataTypes.STRING(255),
@@ -128,7 +121,6 @@ export function initPracticeSessionModel(sequelize: Sequelize) {
       tableName: 'practice_sessions',
       indexes: [
         { fields: ['userId', 'createdAt'] },
-        { fields: ['topicId'] },
         { fields: ['chapterId'] },
         { fields: ['examId'] },
         { fields: ['type'] },
