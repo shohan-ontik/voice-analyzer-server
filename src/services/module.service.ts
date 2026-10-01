@@ -556,16 +556,17 @@ export async function updateModuleForAdmin(
         { where: { id: trainingModule.exam.id }, transaction }
       );
     }
+    // Every publish request (including re-publishing an already-live module)
+    // restarts the exam clock: due = now + deadlineDays. With no deadlineDays
+    // authored, the exam has no due date.
+    if (patch.isActive === true && trainingModule.exam) {
+      const deadlineDays = trainingModule.exam.deadlineDays;
+      await Exam.update(
+        { dueDate: deadlineDays != null ? new Date(Date.now() + deadlineDays * 24 * 60 * 60 * 1000) : null },
+        { where: { id: trainingModule.exam.id }, transaction }
+      );
+    }
     if (isBeingPublished) {
-      // The exam clock starts at publish time: due = now + deadlineDays. With
-      // no deadlineDays authored, the exam simply has no due date.
-      const deadlineDays = trainingModule.exam?.deadlineDays;
-      if (trainingModule.exam && deadlineDays != null) {
-        await Exam.update(
-          { dueDate: new Date(Date.now() + deadlineDays * 24 * 60 * 60 * 1000) },
-          { where: { id: trainingModule.exam.id }, transaction }
-        );
-      }
       await createModulePublishedNotification(trainingModule, transaction);
     }
   });
