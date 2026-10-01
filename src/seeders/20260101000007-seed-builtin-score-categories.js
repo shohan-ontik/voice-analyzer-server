@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 // voice-analyzer frontend (app/lib/analysis.ts: CATEGORY_LABELS/
 // CATEGORY_ORDER) into score_categories, so all marking dimensions are
 // managed uniformly from the admin panel going forward.
-const CATEGORY_NAMES = ['Presentation', 'Correctness', 'Pronunciation', 'Soft Skills'];
+const CATEGORY_NAMES = ['উপস্থাপনা', 'শুদ্ধতা', 'উচ্চারণ', 'সফট স্কিল'];
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {

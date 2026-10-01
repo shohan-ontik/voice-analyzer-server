@@ -2,7 +2,7 @@
 
 const { v4: uuidv4 } = require('uuid');
 
-const CATEGORY_NAMES = ['Confidence', 'Pacing', 'Voice & Energy', 'Clarity', 'Fluency'];
+const CATEGORY_NAMES = ['আত্মবিশ্বাস', 'বলার গতি', 'কণ্ঠস্বর ও প্রাণশক্তি', 'স্পষ্টতা', 'সাবলীলতা'];
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {

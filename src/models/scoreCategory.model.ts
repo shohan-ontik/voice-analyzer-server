@@ -1,6 +1,6 @@
 import { DataTypes, Model, type CreationOptional, type InferAttributes, type InferCreationAttributes, type Sequelize } from 'sequelize';
 
-// An admin-managed scoring category (e.g. "Confidence", "Pacing") that the
+// An admin-managed scoring category (e.g. "আত্মবিশ্বাস", "বলার গতি") that the
 // AI marks a pitch on, in addition to the four built-in categories
 // (presentation, correctness, pronunciation, soft skills) defined in the
 // voice-analyzer frontend's app/lib/analysis.ts. Only active categories

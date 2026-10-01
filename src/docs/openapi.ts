@@ -1000,7 +1000,7 @@ export const openApiDocument = {
 
       ScoreCategory: {
         type: 'object',
-        description: 'An admin-managed scoring rubric category the AI marks a pitch on (e.g. "Confidence", "Pacing").',
+        description: 'An admin-managed scoring rubric category the AI marks a pitch on (e.g. "আত্মবিশ্বাস", "বলার গতি").',
         properties: {
           id: { type: 'string', format: 'uuid' },
           name: { type: 'string' },
