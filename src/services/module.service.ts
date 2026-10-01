@@ -509,6 +509,10 @@ export async function createModuleForAdmin(input: { title: string; description?:
   });
 }
 
+function examTitleFor(moduleTitle: string) {
+  return `${moduleTitle} — Final Exam`;
+}
+
 export async function updateModuleForAdmin(
   id: string,
   patch: { title?: string; description?: string; thumbnailUrl?: string; isActive?: boolean; publishDate?: string | null }
@@ -516,7 +520,7 @@ export async function updateModuleForAdmin(
   const trainingModule = await TrainingModule.findByPk(id, {
     include: [
       { model: ModuleChapter, as: 'chapters', attributes: ['id'] },
-      { model: Exam, as: 'exam', attributes: ['id'] },
+      { model: Exam, as: 'exam', attributes: ['id', 'deadlineDays'] },
     ],
   });
   if (!trainingModule) {
@@ -545,7 +549,23 @@ export async function updateModuleForAdmin(
   // its "new module" announcement (or the reverse).
   await sequelize.transaction(async (transaction) => {
     await trainingModule.save({ transaction });
+    // The exam's name is derived from the module title, so keep it in step.
+    if (patch.title !== undefined && trainingModule.exam) {
+      await Exam.update(
+        { title: examTitleFor(trainingModule.title), moduleLabel: trainingModule.title },
+        { where: { id: trainingModule.exam.id }, transaction }
+      );
+    }
     if (isBeingPublished) {
+      // The exam clock starts at publish time: due = now + deadlineDays. With
+      // no deadlineDays authored, the exam simply has no due date.
+      const deadlineDays = trainingModule.exam?.deadlineDays;
+      if (trainingModule.exam && deadlineDays != null) {
+        await Exam.update(
+          { dueDate: new Date(Date.now() + deadlineDays * 24 * 60 * 60 * 1000) },
+          { where: { id: trainingModule.exam.id }, transaction }
+        );
+      }
       await createModulePublishedNotification(trainingModule, transaction);
     }
   });
@@ -684,6 +704,8 @@ export async function upsertExamForAdmin(
 
   if (trainingModule.exam) {
     const exam = trainingModule.exam;
+    exam.title = examTitleFor(trainingModule.title);
+    exam.moduleLabel = trainingModule.title;
     if (patch.scenario !== undefined) exam.scenario = patch.scenario;
     if (patch.deadlineDays !== undefined) exam.deadlineDays = patch.deadlineDays;
     if (patch.passMark !== undefined) exam.passMark = patch.passMark;
@@ -703,7 +725,7 @@ export async function upsertExamForAdmin(
   return Exam.create({
     moduleId,
     slug,
-    title: `${trainingModule.title} — Final Exam`,
+    title: examTitleFor(trainingModule.title),
     moduleLabel: trainingModule.title,
     scenario: patch.scenario ?? '',
     passMark: patch.passMark ?? 80,

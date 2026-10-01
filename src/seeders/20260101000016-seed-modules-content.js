@@ -530,6 +530,10 @@ const MODULES = [
   },
 ];
 
+// "Days after enrollment" each seeded exam is due; admins can change it in
+// the Module Editor.
+const DEFAULT_DEADLINE_DAYS = 30;
+
 // Random exam due date 15–60 days (inclusive) from seed time.
 const randomDueDate = (from) => {
   const days = 15 + Math.floor(Math.random() * 46);
@@ -573,6 +577,7 @@ module.exports = {
         scenario: module.exam.scenario,
         passMark: module.exam.passMark,
         dueDate: randomDueDate(now),
+        deadlineDays: DEFAULT_DEADLINE_DAYS,
         createdAt: now,
         updatedAt: now,
       });
