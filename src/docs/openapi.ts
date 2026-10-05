@@ -170,7 +170,7 @@ export const openApiDocument = {
                     {
                       type: 'object',
                       properties: {
-                        items: { type: 'array', items: { $ref: '#/components/schemas/AppUser' } },
+                        items: { type: 'array', items: { $ref: '#/components/schemas/AdminUserListItem' } },
                         totalPages: { type: 'integer' },
                         hasNext: { type: 'boolean' },
                         hasPrev: { type: 'boolean' },
@@ -258,6 +258,42 @@ export const openApiDocument = {
         description: 'Admin only.',
         responses: {
           200: { description: 'OK.', content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminStatsSummary' } } } },
+          401: errorResponse('Missing/invalid/expired token.'),
+          403: errorResponse('Caller is not an admin.'),
+        },
+      },
+    },
+
+    '/admin/stats/recent-activity': {
+      get: {
+        tags: ['Admin: Stats'],
+        summary: 'Recent practice activity',
+        description: 'Admin only. Practice sessions across all users, newest first.',
+        parameters: [page.page, { ...page.pageSize, schema: { type: 'integer', minimum: 1, maximum: 100, default: 10 } }],
+        responses: {
+          200: {
+            description: 'OK.',
+            content: {
+              'application/json': {
+                schema: {
+                  allOf: [
+                    { $ref: '#/components/schemas/PageInfo' },
+                    {
+                      type: 'object',
+                      properties: {
+                        items: { type: 'array', items: { $ref: '#/components/schemas/RecentActivityItem' } },
+                        totalPages: { type: 'integer' },
+                        hasNext: { type: 'boolean' },
+                        hasPrev: { type: 'boolean' },
+                      },
+                      required: ['items', 'totalPages', 'hasNext', 'hasPrev'],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          400: errorResponse('Invalid query parameters.'),
           401: errorResponse('Missing/invalid/expired token.'),
           403: errorResponse('Caller is not an admin.'),
         },
@@ -936,6 +972,21 @@ export const openApiDocument = {
         },
         required: ['id', 'username', 'name', 'role', 'isBanned', 'mustChangePassword', 'lastLoginAt', 'firstLoginAt', 'employeeId', 'department', 'jobTitle', 'createdAt'],
       },
+      AdminUserListItem: {
+        description: 'AppUser plus training progress: chapters completed (of all chapters in active modules) and average overall score across all practice sessions.',
+        allOf: [
+          { $ref: '#/components/schemas/AppUser' },
+          {
+            type: 'object',
+            properties: {
+              completedChapters: { type: 'integer' },
+              totalChapters: { type: 'integer' },
+              avgScore: { type: 'integer', nullable: true, description: 'Null when the user has no practice sessions.' },
+            },
+            required: ['completedChapters', 'totalChapters', 'avgScore'],
+          },
+        ],
+      },
       LoginRequest: {
         type: 'object',
         properties: {
@@ -994,8 +1045,24 @@ export const openApiDocument = {
           bannedUsers: { type: 'integer' },
           totalPracticeSessions: { type: 'integer' },
           sessionsThisWeek: { type: 'integer', description: 'Created in the last 7 days, across all users.' },
+          examsTaken: { type: 'integer', description: 'Practice sessions of type `exam` (graded exam attempts).' },
+          avgProficiency: { type: 'integer', nullable: true, description: 'Average overall score across all practice sessions; null when there are none.' },
         },
-        required: ['totalUsers', 'bannedUsers', 'totalPracticeSessions', 'sessionsThisWeek'],
+        required: ['totalUsers', 'bannedUsers', 'totalPracticeSessions', 'sessionsThisWeek', 'examsTaken', 'avgProficiency'],
+      },
+
+      RecentActivityItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          userId: { type: 'string', format: 'uuid' },
+          userName: { type: 'string' },
+          module: { type: 'string', description: "The module title (via the session's chapter or exam), falling back to the session's topic name." },
+          type: { type: 'string', enum: ['exam', 'pitch_practice'] },
+          score: { type: 'integer' },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+        required: ['id', 'userId', 'userName', 'module', 'type', 'score', 'createdAt'],
       },
 
       ScoreCategory: {

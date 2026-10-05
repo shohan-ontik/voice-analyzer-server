@@ -9,6 +9,7 @@ import {
 } from 'sequelize';
 import type { ModuleChapter } from './moduleChapter.model';
 import type { Exam } from './exam.model';
+import type { User } from './user.model';
 
 // Mirrors app/lib/analysis.ts (`AnalysisResult`) in the voice-analyzer
 // frontend repo. Kept as a plain JSONB blob since it's fixed-shape per
@@ -60,6 +61,7 @@ export class PracticeSession extends Model<
   declare updatedAt: CreationOptional<Date>;
 
   // Only populated when eager-loaded via `include`.
+  declare user?: NonAttribute<User>;
   declare chapter?: NonAttribute<ModuleChapter | null>;
   declare exam?: NonAttribute<Exam | null>;
 }
