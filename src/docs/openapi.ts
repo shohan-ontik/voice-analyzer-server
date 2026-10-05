@@ -396,14 +396,14 @@ export const openApiDocument = {
         tags: ['Practice Sessions'],
         summary: 'Save a scored practice session',
         description:
-          'The score itself is computed client-side (the voice-analyzer frontend calls Gemini directly) — this just persists the result against the caller. Rejects with 400 once the caller has recorded 125 pitches (non-exam sessions) in the current calendar month.',
+          'The score itself is computed client-side (the voice-analyzer frontend calls Gemini directly) — this just persists the result against the caller. Rejects with 400 once the caller has recorded 125 pitches (non-exam sessions) in their current 30-day quota cycle (counted from account creation, renewing every 30 days).',
         requestBody: {
           required: true,
           content: { 'application/json': { schema: { $ref: '#/components/schemas/CreatePracticeSessionRequest' } } },
         },
         responses: {
           201: { description: 'Saved.', content: { 'application/json': { schema: { $ref: '#/components/schemas/PracticeSession' } } } },
-          400: errorResponse('Invalid request body, or the monthly pitch cap (125) has been reached.'),
+          400: errorResponse('Invalid request body, or the pitch cap (125 per 30-day cycle) has been reached.'),
           401: errorResponse('Missing/invalid/expired token.'),
         },
       },
@@ -1166,7 +1166,12 @@ export const openApiDocument = {
           passedExams: { type: 'integer' },
           pitchesRemainingThisMonth: {
             type: 'integer',
-            description: 'Pitches (non-exam sessions) left this calendar month, out of a cap of 125.',
+            description: 'Pitches (non-exam sessions) left in the caller\'s current 30-day quota cycle (counted from account creation), out of a cap of 125.',
+          },
+          pitchQuotaResetsAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'When the caller\'s current 30-day quota cycle ends and the pitch quota resets.',
           },
           totalPitchesEvaluated: {
             type: 'integer',
@@ -1183,6 +1188,7 @@ export const openApiDocument = {
           'completedModules',
           'passedExams',
           'pitchesRemainingThisMonth',
+          'pitchQuotaResetsAt',
           'totalPitchesEvaluated',
         ],
       },
