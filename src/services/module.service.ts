@@ -1,6 +1,6 @@
-import fs from 'fs';
-import path from 'path';
-import { Op, literal, type Order } from 'sequelize';
+import fs from "fs";
+import path from "path";
+import { literal, Op, type Order } from "sequelize";
 import {
   Exam,
   LearningMaterial,
@@ -10,12 +10,12 @@ import {
   TrainingModule,
   UserChapterProgress,
   UserMaterialProgress,
-} from '../models';
-import type { LearningMaterialType } from '../models/learningMaterial.model';
-import type { ChapterScenario } from '../models/moduleChapter.model';
-import { ApiError } from '../utils/ApiError';
-import { createModulePublishedNotification } from './notification.service';
-import { UPLOAD_DIR } from '../utils/uploadPath';
+} from "../models";
+import type { LearningMaterialType } from "../models/learningMaterial.model";
+import type { ChapterScenario } from "../models/moduleChapter.model";
+import { ApiError } from "../utils/ApiError";
+import { UPLOAD_DIR } from "../utils/uploadPath";
+import { createModulePublishedNotification } from "./notification.service";
 
 // Fallback only — the admin Module Editor auto-generates a real scenario
 // via AI from the chapter's title/description (see the admin app's
@@ -23,11 +23,12 @@ import { UPLOAD_DIR } from '../utils/uploadPath';
 // This placeholder covers the rare case that generation fails or is
 // skipped, so the trainee-facing app's PitchScenario fields stay non-null.
 const PLACEHOLDER_CHAPTER_SCENARIO: ChapterScenario = {
-  clientInitials: '??',
-  clientName: 'TBD',
+  clientInitials: "??",
+  clientName: "TBD",
   clientTitle: "TODO: configure this chapter's roleplay scenario",
-  objection: 'TODO: add the client objection this chapter should practice against.',
-  objective: 'TODO: describe what the rep should accomplish in this roleplay.',
+  objection:
+    "TODO: add the client objection this chapter should practice against.",
+  objective: "TODO: describe what the rep should accomplish in this roleplay.",
   criteria: [],
 };
 
@@ -44,8 +45,11 @@ function unlinkUploadedFile(storageKey: string | null) {
 // across its materials. The final exam makes up the remaining 20%, earned
 // only once it's passed.
 function calculateModuleProgressPercent(
-  chapters: { completedAt: Date | null; materials: { completedAt: Date | null }[] }[],
-  examPassed: boolean
+  chapters: {
+    completedAt: Date | null;
+    materials: { completedAt: Date | null }[];
+  }[],
+  examPassed: boolean,
 ): number {
   const total = chapters.length;
   const chapterShare = total === 0 ? 0 : 80 / total;
@@ -57,7 +61,8 @@ function calculateModuleProgressPercent(
         ? chapter.completedAt !== null
           ? 1
           : 0
-        : chapter.materials.filter((m) => m.completedAt !== null).length / materialsTotal;
+        : chapter.materials.filter((m) => m.completedAt !== null).length /
+          materialsTotal;
     return sum + chapterShare * chapterFraction;
   }, 0);
 
@@ -71,7 +76,7 @@ function calculateModuleProgressPercent(
 function computeChapterCompletion(
   trainingModule: TrainingModule,
   completedAtByChapter: Map<string, Date>,
-  completedAtByMaterial: Map<string, Date>
+  completedAtByMaterial: Map<string, Date>,
 ) {
   return (trainingModule.chapters ?? []).map((chapter) => ({
     completedAt: completedAtByChapter.get(chapter.id) ?? null,
@@ -85,12 +90,15 @@ function serializeModule(
   trainingModule: TrainingModule,
   completedAtByChapter: Map<string, Date>,
   completedAtByMaterial: Map<string, Date>,
-  bestScoreByExam: Map<string, number>
+  bestScoreByExam: Map<string, number>,
 ) {
-  const chapters = [...(trainingModule.chapters ?? [])].sort((a, b) => a.order - b.order);
+  const chapters = [...(trainingModule.chapters ?? [])].sort(
+    (a, b) => a.order - b.order,
+  );
   const exam = trainingModule.exam ?? null;
   const bestScore = exam ? (bestScoreByExam.get(exam.id) ?? null) : null;
-  const examPassed = bestScore !== null && exam !== null && bestScore >= exam.passMark;
+  const examPassed =
+    bestScore !== null && exam !== null && bestScore >= exam.passMark;
 
   const serializedChapters = chapters.map((chapter) => ({
     id: chapter.id,
@@ -132,8 +140,13 @@ function serializeModule(
       passed: examPassed,
     },
     chapterCount: serializedChapters.length,
-    completedChapterCount: serializedChapters.filter((c) => c.completedAt !== null).length,
-    progressPercent: calculateModuleProgressPercent(serializedChapters, examPassed),
+    completedChapterCount: serializedChapters.filter(
+      (c) => c.completedAt !== null,
+    ).length,
+    progressPercent: calculateModuleProgressPercent(
+      serializedChapters,
+      examPassed,
+    ),
   };
 }
 
@@ -145,12 +158,17 @@ function serializeModuleListItem(
   trainingModule: TrainingModule,
   completedAtByChapter: Map<string, Date>,
   completedAtByMaterial: Map<string, Date>,
-  bestScoreByExam: Map<string, number>
+  bestScoreByExam: Map<string, number>,
 ) {
-  const chaptersCompletion = computeChapterCompletion(trainingModule, completedAtByChapter, completedAtByMaterial);
+  const chaptersCompletion = computeChapterCompletion(
+    trainingModule,
+    completedAtByChapter,
+    completedAtByMaterial,
+  );
   const exam = trainingModule.exam ?? null;
   const bestScore = exam ? (bestScoreByExam.get(exam.id) ?? null) : null;
-  const examPassed = bestScore !== null && exam !== null && bestScore >= exam.passMark;
+  const examPassed =
+    bestScore !== null && exam !== null && bestScore >= exam.passMark;
 
   return {
     id: trainingModule.id,
@@ -160,8 +178,13 @@ function serializeModuleListItem(
     thumbnailUrl: trainingModule.thumbnailUrl,
     order: trainingModule.order,
     chapterCount: chaptersCompletion.length,
-    completedChapterCount: chaptersCompletion.filter((c) => c.completedAt !== null).length,
-    progressPercent: calculateModuleProgressPercent(chaptersCompletion, examPassed),
+    completedChapterCount: chaptersCompletion.filter(
+      (c) => c.completedAt !== null,
+    ).length,
+    progressPercent: calculateModuleProgressPercent(
+      chaptersCompletion,
+      examPassed,
+    ),
   };
 }
 
@@ -173,11 +196,11 @@ function computeExamStatus(
   examPassed: boolean,
   bestScore: number | null,
   totalChapters: number,
-  completedChapters: number
-): 'passed' | 'failed' | 'ready' | 'locked' {
-  if (examPassed) return 'passed';
-  if (totalChapters === 0 || completedChapters < totalChapters) return 'locked';
-  return bestScore !== null ? 'failed' : 'ready';
+  completedChapters: number,
+): "passed" | "failed" | "ready" | "locked" {
+  if (examPassed) return "passed";
+  if (totalChapters === 0 || completedChapters < totalChapters) return "locked";
+  return bestScore !== null ? "failed" : "ready";
 }
 
 // Feeds the /exams page: one entry per module that has an exam, with the
@@ -187,18 +210,29 @@ function serializeModuleExamItem(
   trainingModule: TrainingModule,
   completedAtByChapter: Map<string, Date>,
   completedAtByMaterial: Map<string, Date>,
-  bestScoreByExam: Map<string, number>
+  bestScoreByExam: Map<string, number>,
 ) {
   const exam = trainingModule.exam;
   if (!exam) return null;
 
-  const chaptersCompletion = computeChapterCompletion(trainingModule, completedAtByChapter, completedAtByMaterial);
+  const chaptersCompletion = computeChapterCompletion(
+    trainingModule,
+    completedAtByChapter,
+    completedAtByMaterial,
+  );
   const totalChapters = chaptersCompletion.length;
-  const completedChapters = chaptersCompletion.filter((c) => c.completedAt !== null).length;
+  const completedChapters = chaptersCompletion.filter(
+    (c) => c.completedAt !== null,
+  ).length;
 
   const bestScore = bestScoreByExam.get(exam.id) ?? null;
   const passed = bestScore !== null && bestScore >= exam.passMark;
-  const status = computeExamStatus(passed, bestScore, totalChapters, completedChapters);
+  const status = computeExamStatus(
+    passed,
+    bestScore,
+    totalChapters,
+    completedChapters,
+  );
 
   return {
     moduleSlug: trainingModule.slug,
@@ -218,77 +252,123 @@ function serializeModuleExamItem(
 }
 
 async function fetchProgressMaps(modules: TrainingModule[], userId: string) {
-  const chapterIds = modules.flatMap((m) => (m.chapters ?? []).map((c) => c.id));
-  const materialIds = modules.flatMap((m) => (m.chapters ?? []).flatMap((c) => (c.materials ?? []).map((mat) => mat.id)));
-  const examIds = modules.map((m) => m.exam?.id).filter((id): id is string => Boolean(id));
+  const chapterIds = modules.flatMap((m) =>
+    (m.chapters ?? []).map((c) => c.id),
+  );
+  const materialIds = modules.flatMap((m) =>
+    (m.chapters ?? []).flatMap((c) => (c.materials ?? []).map((mat) => mat.id)),
+  );
+  const examIds = modules
+    .map((m) => m.exam?.id)
+    .filter((id): id is string => Boolean(id));
 
   const [progressRows, materialProgressRows, examSessions] = await Promise.all([
     chapterIds.length
-      ? UserChapterProgress.findAll({ where: { userId, chapterId: chapterIds } })
+      ? UserChapterProgress.findAll({
+          where: { userId, chapterId: chapterIds },
+        })
       : Promise.resolve([]),
     materialIds.length
-      ? UserMaterialProgress.findAll({ where: { userId, materialId: materialIds } })
+      ? UserMaterialProgress.findAll({
+          where: { userId, materialId: materialIds },
+        })
       : Promise.resolve([]),
     examIds.length
-      ? PracticeSession.findAll({ where: { userId, examId: { [Op.in]: examIds } } })
+      ? PracticeSession.findAll({
+          where: { userId, examId: { [Op.in]: examIds } },
+        })
       : Promise.resolve([]),
   ]);
 
   const completedAtByChapter = new Map<string, Date>();
   for (const row of progressRows) {
-    if (row.completedAt) completedAtByChapter.set(row.chapterId, row.completedAt);
+    if (row.completedAt)
+      completedAtByChapter.set(row.chapterId, row.completedAt);
   }
 
   const completedAtByMaterial = new Map<string, Date>();
   for (const row of materialProgressRows) {
-    if (row.completedAt) completedAtByMaterial.set(row.materialId, row.completedAt);
+    if (row.completedAt)
+      completedAtByMaterial.set(row.materialId, row.completedAt);
   }
 
   const bestScoreByExam = new Map<string, number>();
   for (const session of examSessions) {
     if (!session.examId) continue;
     const prev = bestScoreByExam.get(session.examId) ?? -1;
-    if (session.overallScore > prev) bestScoreByExam.set(session.examId, session.overallScore);
+    if (session.overallScore > prev)
+      bestScoreByExam.set(session.examId, session.overallScore);
   }
 
   return { completedAtByChapter, completedAtByMaterial, bestScoreByExam };
 }
 
 async function attachProgress(modules: TrainingModule[], userId: string) {
-  const { completedAtByChapter, completedAtByMaterial, bestScoreByExam } = await fetchProgressMaps(modules, userId);
-  return modules.map((m) => serializeModule(m, completedAtByChapter, completedAtByMaterial, bestScoreByExam));
+  const { completedAtByChapter, completedAtByMaterial, bestScoreByExam } =
+    await fetchProgressMaps(modules, userId);
+  return modules.map((m) =>
+    serializeModule(
+      m,
+      completedAtByChapter,
+      completedAtByMaterial,
+      bestScoreByExam,
+    ),
+  );
 }
 
 async function attachListProgress(modules: TrainingModule[], userId: string) {
-  const { completedAtByChapter, completedAtByMaterial, bestScoreByExam } = await fetchProgressMaps(modules, userId);
-  return modules.map((m) => serializeModuleListItem(m, completedAtByChapter, completedAtByMaterial, bestScoreByExam));
+  const { completedAtByChapter, completedAtByMaterial, bestScoreByExam } =
+    await fetchProgressMaps(modules, userId);
+  return modules.map((m) =>
+    serializeModuleListItem(
+      m,
+      completedAtByChapter,
+      completedAtByMaterial,
+      bestScoreByExam,
+    ),
+  );
 }
 
 async function attachExamProgress(modules: TrainingModule[], userId: string) {
-  const { completedAtByChapter, completedAtByMaterial, bestScoreByExam } = await fetchProgressMaps(modules, userId);
+  const { completedAtByChapter, completedAtByMaterial, bestScoreByExam } =
+    await fetchProgressMaps(modules, userId);
   return modules
-    .map((m) => serializeModuleExamItem(m, completedAtByChapter, completedAtByMaterial, bestScoreByExam))
+    .map((m) =>
+      serializeModuleExamItem(
+        m,
+        completedAtByChapter,
+        completedAtByMaterial,
+        bestScoreByExam,
+      ),
+    )
     .filter((item): item is NonNullable<typeof item> => item !== null);
 }
 
 const MODULE_INCLUDE = [
-  { model: ModuleChapter, as: 'chapters' as const, include: [{ model: LearningMaterial, as: 'materials' as const }] },
-  { model: Exam, as: 'exam' as const },
+  {
+    model: ModuleChapter,
+    as: "chapters" as const,
+    include: [{ model: LearningMaterial, as: "materials" as const }],
+  },
+  { model: Exam, as: "exam" as const },
 ];
 
 async function fetchActiveModules() {
   return TrainingModule.findAll({
     where: { isActive: true },
     include: MODULE_INCLUDE,
-    order: [['order', 'ASC']],
+    order: [["order", "ASC"]],
   });
 }
 
-export async function listModulesForUser(userId: string, params: { page: number; pageSize: number }) {
+export async function listModulesForUser(
+  userId: string,
+  params: { page: number; pageSize: number },
+) {
   const { rows, count } = await TrainingModule.findAndCountAll({
     where: { isActive: true },
     include: MODULE_INCLUDE,
-    order: [['order', 'ASC']],
+    order: [["order", "ASC"]],
     limit: params.pageSize,
     offset: (params.page - 1) * params.pageSize,
     // Avoids duplicate/undercounted rows from the hasMany `chapters` include.
@@ -311,21 +391,31 @@ export async function listModulesForUser(userId: string, params: { page: number;
 
 export async function listExamsForUser(
   userId: string,
-  params: { page: number; pageSize: number; sortBy: 'order' | 'dueDate'; sortOrder: 'asc' | 'desc' }
+  params: {
+    page: number;
+    pageSize: number;
+    sortBy: "order" | "dueDate";
+    sortOrder: "asc" | "desc";
+  },
 ) {
-  const direction = params.sortOrder === 'desc' ? 'DESC' : 'ASC';
+  const direction = params.sortOrder === "desc" ? "DESC" : "ASC";
   // Module order breaks ties so pagination stays stable; exams without a
   // due date sort last in either direction. dueDate is read through a
   // correlated subquery because Sequelize only applies the ORDER BY to the
   // outer query when the `chapters` include forces a paginated subquery,
   // where the joined `exam` alias isn't in scope.
   const order: Order =
-    params.sortBy === 'dueDate'
+    params.sortBy === "dueDate"
       ? [
-          [literal('(SELECT "dueDate" FROM "exams" WHERE "exams"."moduleId" = "TrainingModule"."id")'), `${direction} NULLS LAST`],
-          ['order', 'ASC'],
+          [
+            literal(
+              '(SELECT "dueDate" FROM "exams" WHERE "exams"."moduleId" = "TrainingModule"."id")',
+            ),
+            `${direction} NULLS LAST`,
+          ],
+          ["order", "ASC"],
         ]
-      : [['order', direction]];
+      : [["order", direction]];
 
   // Only modules that have an exam are returned (see serializeModuleExamItem),
   // so the exam include is required (inner join) to make DB-level pagination
@@ -333,8 +423,12 @@ export async function listExamsForUser(
   const { rows, count } = await TrainingModule.findAndCountAll({
     where: { isActive: true },
     include: [
-      { model: ModuleChapter, as: 'chapters', include: [{ model: LearningMaterial, as: 'materials' }] },
-      { model: Exam, as: 'exam', required: true },
+      {
+        model: ModuleChapter,
+        as: "chapters",
+        include: [{ model: LearningMaterial, as: "materials" }],
+      },
+      { model: Exam, as: "exam", required: true },
     ],
     order,
     limit: params.pageSize,
@@ -373,8 +467,14 @@ export async function getOwnModuleStats(userId: string) {
     if (trainingModule.exam?.passed) passedExams += 1;
 
     const totalChapters = trainingModule.chapters.length;
-    const completedChapters = trainingModule.chapters.filter((c) => c.completedAt !== null).length;
-    if (totalChapters > 0 && completedChapters === totalChapters && trainingModule.exam?.passed) {
+    const completedChapters = trainingModule.chapters.filter(
+      (c) => c.completedAt !== null,
+    ).length;
+    if (
+      totalChapters > 0 &&
+      completedChapters === totalChapters &&
+      trainingModule.exam?.passed
+    ) {
       completedModules += 1;
     }
   }
@@ -388,7 +488,7 @@ export async function getModuleForUser(slug: string, userId: string) {
     include: MODULE_INCLUDE,
   });
   if (!trainingModule) {
-    throw ApiError.notFound('Module not found.');
+    throw ApiError.notFound("Module not found.");
   }
 
   const [serialized] = await attachProgress([trainingModule], userId);
@@ -399,21 +499,24 @@ function slugify(title: string) {
   const base = title
     .toLowerCase()
     .trim()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
-    .replace(/^-+|-+$/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
     .slice(0, 100);
-  return base || 'module';
+  return base || "module";
 }
 
-export async function listModulesForAdmin(params: { page: number; pageSize: number }) {
+export async function listModulesForAdmin(params: {
+  page: number;
+  pageSize: number;
+}) {
   const { count, rows } = await TrainingModule.findAndCountAll({
     include: [
-      { model: ModuleChapter, as: 'chapters', attributes: ['id'] },
-      { model: Exam, as: 'exam', attributes: ['id'] },
+      { model: ModuleChapter, as: "chapters", attributes: ["id"] },
+      { model: Exam, as: "exam", attributes: ["id"] },
     ],
     order: [
-      ['order', 'ASC'],
-      ['createdAt', 'DESC'],
+      ["order", "ASC"],
+      ["createdAt", "DESC"],
     ],
     limit: params.pageSize,
     offset: (params.page - 1) * params.pageSize,
@@ -449,15 +552,21 @@ export async function listModulesForAdmin(params: { page: number; pageSize: numb
 export async function getModuleForAdmin(id: string) {
   const trainingModule = await TrainingModule.findByPk(id, {
     include: [
-      { model: ModuleChapter, as: 'chapters', include: [{ model: LearningMaterial, as: 'materials' }] },
-      { model: Exam, as: 'exam' },
+      {
+        model: ModuleChapter,
+        as: "chapters",
+        include: [{ model: LearningMaterial, as: "materials" }],
+      },
+      { model: Exam, as: "exam" },
     ],
   });
   if (!trainingModule) {
-    throw ApiError.notFound('Module not found.');
+    throw ApiError.notFound("Module not found.");
   }
 
-  const chapters = [...(trainingModule.chapters ?? [])].sort((a, b) => a.order - b.order);
+  const chapters = [...(trainingModule.chapters ?? [])].sort(
+    (a, b) => a.order - b.order,
+  );
 
   return {
     id: trainingModule.id,
@@ -475,7 +584,12 @@ export async function getModuleForAdmin(id: string) {
       order: chapter.order,
       materials: [...(chapter.materials ?? [])]
         .sort((a, b) => a.order - b.order)
-        .map((material) => ({ id: material.id, type: material.type, title: material.title, meta: material.meta })),
+        .map((material) => ({
+          id: material.id,
+          type: material.type,
+          title: material.title,
+          meta: material.meta,
+        })),
     })),
     exam: trainingModule.exam && {
       id: trainingModule.exam.id,
@@ -487,7 +601,11 @@ export async function getModuleForAdmin(id: string) {
   };
 }
 
-export async function createModuleForAdmin(input: { title: string; description?: string; thumbnailUrl?: string }) {
+export async function createModuleForAdmin(input: {
+  title: string;
+  description?: string;
+  thumbnailUrl?: string;
+}) {
   const baseSlug = slugify(input.title);
   let slug = baseSlug;
   let suffix = 1;
@@ -497,12 +615,12 @@ export async function createModuleForAdmin(input: { title: string; description?:
     slug = `${baseSlug}-${suffix}`;
   }
 
-  const maxOrder = (await TrainingModule.max('order')) as number | null;
+  const maxOrder = (await TrainingModule.max("order")) as number | null;
 
   return TrainingModule.create({
     slug,
     title: input.title,
-    description: input.description ?? '',
+    description: input.description ?? "",
     thumbnailUrl: input.thumbnailUrl ?? null,
     order: (maxOrder ?? -1) + 1,
     isActive: false,
@@ -510,21 +628,27 @@ export async function createModuleForAdmin(input: { title: string; description?:
 }
 
 function examTitleFor(moduleTitle: string) {
-  return `${moduleTitle} — Final Exam`;
+  return `${moduleTitle} — চূড়ান্ত পরীক্ষা`;
 }
 
 export async function updateModuleForAdmin(
   id: string,
-  patch: { title?: string; description?: string; thumbnailUrl?: string; isActive?: boolean; publishDate?: string | null }
+  patch: {
+    title?: string;
+    description?: string;
+    thumbnailUrl?: string;
+    isActive?: boolean;
+    publishDate?: string | null;
+  },
 ) {
   const trainingModule = await TrainingModule.findByPk(id, {
     include: [
-      { model: ModuleChapter, as: 'chapters', attributes: ['id'] },
-      { model: Exam, as: 'exam', attributes: ['id', 'deadlineDays'] },
+      { model: ModuleChapter, as: "chapters", attributes: ["id"] },
+      { model: Exam, as: "exam", attributes: ["id", "deadlineDays"] },
     ],
   });
   if (!trainingModule) {
-    throw ApiError.notFound('Module not found.');
+    throw ApiError.notFound("Module not found.");
   }
 
   // Publishing a module makes it visible in the trainee-facing app, which
@@ -535,15 +659,20 @@ export async function updateModuleForAdmin(
   if (isBeingPublished) {
     const hasChapters = (trainingModule.chapters ?? []).length > 0;
     if (!hasChapters || !trainingModule.exam) {
-      throw ApiError.badRequest('Add at least one chapter and an exam before publishing this module.');
+      throw ApiError.badRequest(
+        "Add at least one chapter and an exam before publishing this module.",
+      );
     }
   }
 
   if (patch.title !== undefined) trainingModule.title = patch.title;
-  if (patch.description !== undefined) trainingModule.description = patch.description;
-  if (patch.thumbnailUrl !== undefined) trainingModule.thumbnailUrl = patch.thumbnailUrl;
+  if (patch.description !== undefined)
+    trainingModule.description = patch.description;
+  if (patch.thumbnailUrl !== undefined)
+    trainingModule.thumbnailUrl = patch.thumbnailUrl;
   if (patch.isActive !== undefined) trainingModule.isActive = patch.isActive;
-  if (patch.publishDate !== undefined) trainingModule.publishDate = patch.publishDate;
+  if (patch.publishDate !== undefined)
+    trainingModule.publishDate = patch.publishDate;
 
   // Saved together with the notification so a module can't go live without
   // its "new module" announcement (or the reverse).
@@ -552,8 +681,11 @@ export async function updateModuleForAdmin(
     // The exam's name is derived from the module title, so keep it in step.
     if (patch.title !== undefined && trainingModule.exam) {
       await Exam.update(
-        { title: examTitleFor(trainingModule.title), moduleLabel: trainingModule.title },
-        { where: { id: trainingModule.exam.id }, transaction }
+        {
+          title: examTitleFor(trainingModule.title),
+          moduleLabel: trainingModule.title,
+        },
+        { where: { id: trainingModule.exam.id }, transaction },
       );
     }
     // Every publish request (including re-publishing an already-live module)
@@ -562,8 +694,13 @@ export async function updateModuleForAdmin(
     if (patch.isActive === true && trainingModule.exam) {
       const deadlineDays = trainingModule.exam.deadlineDays;
       await Exam.update(
-        { dueDate: deadlineDays != null ? new Date(Date.now() + deadlineDays * 24 * 60 * 60 * 1000) : null },
-        { where: { id: trainingModule.exam.id }, transaction }
+        {
+          dueDate:
+            deadlineDays != null
+              ? new Date(Date.now() + deadlineDays * 24 * 60 * 60 * 1000)
+              : null,
+        },
+        { where: { id: trainingModule.exam.id }, transaction },
       );
     }
     if (isBeingPublished) {
@@ -576,10 +713,16 @@ export async function updateModuleForAdmin(
 
 export async function deleteModuleForAdmin(id: string) {
   const trainingModule = await TrainingModule.findByPk(id, {
-    include: [{ model: ModuleChapter, as: 'chapters', include: [{ model: LearningMaterial, as: 'materials' }] }],
+    include: [
+      {
+        model: ModuleChapter,
+        as: "chapters",
+        include: [{ model: LearningMaterial, as: "materials" }],
+      },
+    ],
   });
   if (!trainingModule) {
-    throw ApiError.notFound('Module not found.');
+    throw ApiError.notFound("Module not found.");
   }
 
   for (const chapter of trainingModule.chapters ?? []) {
@@ -596,11 +739,11 @@ export async function deleteModuleForAdmin(id: string) {
 
 export async function createChapterForAdmin(
   moduleId: string,
-  input: { title: string; description?: string; scenario?: ChapterScenario }
+  input: { title: string; description?: string; scenario?: ChapterScenario },
 ) {
   const trainingModule = await TrainingModule.findByPk(moduleId);
   if (!trainingModule) {
-    throw ApiError.notFound('Module not found.');
+    throw ApiError.notFound("Module not found.");
   }
 
   const baseSlug = slugify(input.title);
@@ -612,22 +755,26 @@ export async function createChapterForAdmin(
     slug = `${baseSlug}-${suffix}`;
   }
 
-  const maxOrder = (await ModuleChapter.max('order', { where: { moduleId } })) as number | null;
+  const maxOrder = (await ModuleChapter.max("order", {
+    where: { moduleId },
+  })) as number | null;
 
   return ModuleChapter.create({
     moduleId,
     slug,
     title: input.title,
-    description: input.description ?? '',
+    description: input.description ?? "",
     scenario: input.scenario ?? PLACEHOLDER_CHAPTER_SCENARIO,
     order: (maxOrder ?? -1) + 1,
   });
 }
 
 async function findChapterInModule(moduleId: string, chapterId: string) {
-  const chapter = await ModuleChapter.findOne({ where: { id: chapterId, moduleId } });
+  const chapter = await ModuleChapter.findOne({
+    where: { id: chapterId, moduleId },
+  });
   if (!chapter) {
-    throw ApiError.notFound('Chapter not found.');
+    throw ApiError.notFound("Chapter not found.");
   }
   return chapter;
 }
@@ -635,7 +782,7 @@ async function findChapterInModule(moduleId: string, chapterId: string) {
 export async function updateChapterForAdmin(
   moduleId: string,
   chapterId: string,
-  patch: { title?: string; description?: string; scenario?: ChapterScenario }
+  patch: { title?: string; description?: string; scenario?: ChapterScenario },
 ) {
   const chapter = await findChapterInModule(moduleId, chapterId);
   if (patch.title !== undefined) chapter.title = patch.title;
@@ -645,13 +792,16 @@ export async function updateChapterForAdmin(
   return chapter;
 }
 
-export async function deleteChapterForAdmin(moduleId: string, chapterId: string) {
+export async function deleteChapterForAdmin(
+  moduleId: string,
+  chapterId: string,
+) {
   const chapter = await ModuleChapter.findOne({
     where: { id: chapterId, moduleId },
-    include: [{ model: LearningMaterial, as: 'materials' }],
+    include: [{ model: LearningMaterial, as: "materials" }],
   });
   if (!chapter) {
-    throw ApiError.notFound('Chapter not found.');
+    throw ApiError.notFound("Chapter not found.");
   }
 
   for (const material of chapter.materials ?? []) {
@@ -664,11 +814,20 @@ export async function deleteChapterForAdmin(moduleId: string, chapterId: string)
 export async function createMaterialForAdmin(
   moduleId: string,
   chapterId: string,
-  input: { title: string; type: LearningMaterialType; meta: string; filename: string; storageKey: string; mimeType: string }
+  input: {
+    title: string;
+    type: LearningMaterialType;
+    meta: string;
+    filename: string;
+    storageKey: string;
+    mimeType: string;
+  },
 ) {
   await findChapterInModule(moduleId, chapterId);
 
-  const maxOrder = (await LearningMaterial.max('order', { where: { chapterId } })) as number | null;
+  const maxOrder = (await LearningMaterial.max("order", {
+    where: { chapterId },
+  })) as number | null;
 
   return LearningMaterial.create({
     chapterId,
@@ -682,12 +841,18 @@ export async function createMaterialForAdmin(
   });
 }
 
-export async function deleteMaterialForAdmin(moduleId: string, chapterId: string, materialId: string) {
+export async function deleteMaterialForAdmin(
+  moduleId: string,
+  chapterId: string,
+  materialId: string,
+) {
   await findChapterInModule(moduleId, chapterId);
 
-  const material = await LearningMaterial.findOne({ where: { id: materialId, chapterId } });
+  const material = await LearningMaterial.findOne({
+    where: { id: materialId, chapterId },
+  });
   if (!material) {
-    throw ApiError.notFound('Material not found.');
+    throw ApiError.notFound("Material not found.");
   }
 
   unlinkUploadedFile(material.storageKey);
@@ -696,11 +861,13 @@ export async function deleteMaterialForAdmin(moduleId: string, chapterId: string
 
 export async function upsertExamForAdmin(
   moduleId: string,
-  patch: { scenario?: string; deadlineDays?: number | null; passMark?: number }
+  patch: { scenario?: string; deadlineDays?: number | null; passMark?: number },
 ) {
-  const trainingModule = await TrainingModule.findByPk(moduleId, { include: [{ model: Exam, as: 'exam' }] });
+  const trainingModule = await TrainingModule.findByPk(moduleId, {
+    include: [{ model: Exam, as: "exam" }],
+  });
   if (!trainingModule) {
-    throw ApiError.notFound('Module not found.');
+    throw ApiError.notFound("Module not found.");
   }
 
   if (trainingModule.exam) {
@@ -708,7 +875,8 @@ export async function upsertExamForAdmin(
     exam.title = examTitleFor(trainingModule.title);
     exam.moduleLabel = trainingModule.title;
     if (patch.scenario !== undefined) exam.scenario = patch.scenario;
-    if (patch.deadlineDays !== undefined) exam.deadlineDays = patch.deadlineDays;
+    if (patch.deadlineDays !== undefined)
+      exam.deadlineDays = patch.deadlineDays;
     if (patch.passMark !== undefined) exam.passMark = patch.passMark;
     await exam.save();
     return exam;
@@ -728,25 +896,39 @@ export async function upsertExamForAdmin(
     slug,
     title: examTitleFor(trainingModule.title),
     moduleLabel: trainingModule.title,
-    scenario: patch.scenario ?? '',
+    scenario: patch.scenario ?? "",
     passMark: patch.passMark ?? 80,
     deadlineDays: patch.deadlineDays ?? null,
   });
 }
 
-export async function markMaterialComplete(userId: string, moduleSlug: string, chapterSlug: string, materialId: string) {
+export async function markMaterialComplete(
+  userId: string,
+  moduleSlug: string,
+  chapterSlug: string,
+  materialId: string,
+) {
   const chapter = await ModuleChapter.findOne({
     where: { slug: chapterSlug },
-    include: [{ model: TrainingModule, as: 'module', where: { slug: moduleSlug }, attributes: [] }],
+    include: [
+      {
+        model: TrainingModule,
+        as: "module",
+        where: { slug: moduleSlug },
+        attributes: [],
+      },
+    ],
   });
   if (!chapter) {
-    throw ApiError.notFound('Chapter not found.');
+    throw ApiError.notFound("Chapter not found.");
   }
 
-  const materials = await LearningMaterial.findAll({ where: { chapterId: chapter.id } });
+  const materials = await LearningMaterial.findAll({
+    where: { chapterId: chapter.id },
+  });
   const material = materials.find((m) => m.id === materialId);
   if (!material) {
-    throw ApiError.notFound('Material not found.');
+    throw ApiError.notFound("Material not found.");
   }
 
   const [progress] = await UserMaterialProgress.findOrCreate({
@@ -762,8 +944,14 @@ export async function markMaterialComplete(userId: string, moduleSlug: string, c
   const materialProgressRows = await UserMaterialProgress.findAll({
     where: { userId, materialId: materials.map((m) => m.id) },
   });
-  const completedMaterialIds = new Set(materialProgressRows.filter((row) => row.completedAt).map((row) => row.materialId));
-  const chapterCompleted = materials.every((m) => completedMaterialIds.has(m.id));
+  const completedMaterialIds = new Set(
+    materialProgressRows
+      .filter((row) => row.completedAt)
+      .map((row) => row.materialId),
+  );
+  const chapterCompleted = materials.every((m) =>
+    completedMaterialIds.has(m.id),
+  );
 
   if (chapterCompleted) {
     const [chapterProgress] = await UserChapterProgress.findOrCreate({
@@ -776,5 +964,9 @@ export async function markMaterialComplete(userId: string, moduleSlug: string, c
     }
   }
 
-  return { completed: true, completedAt: progress.completedAt, chapterCompleted };
+  return {
+    completed: true,
+    completedAt: progress.completedAt,
+    chapterCompleted,
+  };
 }
