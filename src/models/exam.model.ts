@@ -15,7 +15,8 @@ export class Exam extends Model<InferAttributes<Exam>, InferCreationAttributes<E
   declare passMark: number;
   declare dueDate: CreationOptional<Date | null>;
   // "Days after enrollment" this exam is due, as authored in the admin
-  // Module Editor — independent of dueDate above, which nothing sets.
+  // Module Editor. dueDate above is derived from it: set on publish, and
+  // shifted when this changes on a published module.
   declare deadlineDays: CreationOptional<number | null>;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;

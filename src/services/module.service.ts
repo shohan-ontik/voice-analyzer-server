@@ -17,6 +17,8 @@ import { ApiError } from "../utils/ApiError";
 import { UPLOAD_DIR } from "../utils/uploadPath";
 import { createModulePublishedNotification } from "./notification.service";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 // Fallback only — the admin Module Editor auto-generates a real scenario
 // via AI from the chapter's title/description (see the admin app's
 // generate-scenario route) and sends it along with create/update requests.
@@ -697,7 +699,7 @@ export async function updateModuleForAdmin(
         {
           dueDate:
             deadlineDays != null
-              ? new Date(Date.now() + deadlineDays * 24 * 60 * 60 * 1000)
+              ? new Date(Date.now() + deadlineDays * DAY_MS)
               : null,
         },
         { where: { id: trainingModule.exam.id }, transaction },
@@ -875,8 +877,26 @@ export async function upsertExamForAdmin(
     exam.title = examTitleFor(trainingModule.title);
     exam.moduleLabel = trainingModule.title;
     if (patch.scenario !== undefined) exam.scenario = patch.scenario;
-    if (patch.deadlineDays !== undefined)
+    if (
+      patch.deadlineDays !== undefined &&
+      patch.deadlineDays !== exam.deadlineDays
+    ) {
+      // A published module's exam clock is already running (see
+      // updateModuleForAdmin), so move dueDate with the new deadline,
+      // anchored to when the clock started rather than restarting it. With no
+      // prior due date, the clock starts now.
+      if (trainingModule.isActive) {
+        const clockStart =
+          exam.dueDate && exam.deadlineDays != null
+            ? exam.dueDate.getTime() - exam.deadlineDays * DAY_MS
+            : Date.now();
+        exam.dueDate =
+          patch.deadlineDays != null
+            ? new Date(clockStart + patch.deadlineDays * DAY_MS)
+            : null;
+      }
       exam.deadlineDays = patch.deadlineDays;
+    }
     if (patch.passMark !== undefined) exam.passMark = patch.passMark;
     await exam.save();
     return exam;
