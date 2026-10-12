@@ -533,6 +533,9 @@ const MODULES = [
 // "Days after enrollment" each seeded exam is due; admins can change it in
 // the Module Editor.
 const DEFAULT_DEADLINE_DAYS = 30;
+const EXAMS_PER_MODULE = 3;
+const BENGALI_DIGITS = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+const toBengaliDigits = (n) => String(n).replace(/\d/g, (d) => BENGALI_DIGITS[Number(d)]);
 
 // Random exam due date 15–60 days (inclusive) from seed time.
 const randomDueDate = (from) => {
@@ -540,11 +543,21 @@ const randomDueDate = (from) => {
   return new Date(from.getTime() + days * 24 * 60 * 60 * 1000);
 };
 
+// Only one module can be published per month, so each seeded module gets its
+// own past month (the last one a month ago), leaving this month's slot free.
+// 10:00 Asia/Dhaka on the 1st.
+const publishedMonthsAgo = (from, monthsAgo) =>
+  new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() - monthsAgo, 1, 4));
+
 module.exports = {
   async up(queryInterface) {
-    const [existing] = await queryInterface.sequelize.query('SELECT id FROM modules LIMIT 1');
+    // Only the seed's own slugs count — admin-created modules shouldn't block
+    // (re)seeding the curriculum.
+    const [existing] = await queryInterface.sequelize.query('SELECT id FROM modules WHERE slug IN (:slugs) LIMIT 1', {
+      replacements: { slugs: MODULES.map((m) => m.slug) },
+    });
     if (existing.length > 0) {
-      console.log('Module content seed skipped: modules already exist.');
+      console.log('Module content seed skipped: seeded modules already exist.');
       return;
     }
 
@@ -564,23 +577,29 @@ module.exports = {
         thumbnailUrl: module.thumbnailUrl,
         order: moduleIndex,
         isActive: true,
+        publishedAt: publishedMonthsAgo(now, MODULES.length - moduleIndex),
         createdAt: now,
         updatedAt: now,
       });
 
-      examRows.push({
-        id: uuidv4(),
-        moduleId,
-        slug: module.exam.slug,
-        title: module.exam.title,
-        moduleLabel: module.exam.moduleLabel,
-        scenario: module.exam.scenario,
-        passMark: module.exam.passMark,
-        dueDate: randomDueDate(now),
-        deadlineDays: DEFAULT_DEADLINE_DAYS,
-        createdAt: now,
-        updatedAt: now,
-      });
+      // Every module has three exams. The authored one is exam #1; the other
+      // two reuse its scenario/pass mark so seeded modules are publishable.
+      for (let order = 0; order < EXAMS_PER_MODULE; order += 1) {
+        examRows.push({
+          id: uuidv4(),
+          moduleId,
+          slug: order === 0 ? module.exam.slug : `${module.slug}-exam-${order + 1}`,
+          title: order === 0 ? module.exam.title : `${module.title} — পরীক্ষা ${toBengaliDigits(order + 1)}`,
+          moduleLabel: module.exam.moduleLabel,
+          scenario: module.exam.scenario,
+          passMark: module.exam.passMark,
+          order,
+          dueDate: randomDueDate(now),
+          deadlineDays: DEFAULT_DEADLINE_DAYS,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
 
       module.chapters.forEach((chapter, chapterIndex) => {
         const chapterId = uuidv4();

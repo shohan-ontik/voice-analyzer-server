@@ -75,8 +75,8 @@ export const materialParamSchema = z.object({
   params: z.object({ id: z.string().uuid(), chapterId: z.string().uuid(), materialId: z.string().uuid() }),
 });
 
-export const upsertExamSchema = z.object({
-  params: z.object({ id: z.string().uuid() }),
+export const updateExamSchema = z.object({
+  params: z.object({ id: z.string().uuid(), examId: z.string().uuid() }),
   body: z.object({
     scenario: z.string().max(10000).optional(),
     deadlineDays: z.coerce.number().int().min(0).max(365).nullable().optional(),

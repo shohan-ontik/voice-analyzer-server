@@ -2,7 +2,7 @@ import { DataTypes, Model, type CreationOptional, type InferAttributes, type Inf
 import type { ModuleChapter } from './moduleChapter.model';
 import type { Exam } from './exam.model';
 
-// A training module: an ordered set of chapters ending in one exam. See
+// A training module: an ordered set of chapters ending in three exams. See
 // ModuleChapter and Exam. Module completion is not stored anywhere — it's
 // derived per-user from UserChapterProgress + whether the linked Exam has
 // been passed (a passing PracticeSession with this module's examId).
@@ -17,11 +17,18 @@ export class TrainingModule extends Model<InferAttributes<TrainingModule>, Infer
   // Admin-authored metadata (e.g. "go live on this date") — not enforced by
   // any scheduler; isActive is what actually controls trainee visibility.
   declare publishDate: CreationOptional<string | null>;
+  // Set by the server the first time the module goes live. Only one module
+  // may be first published per calendar month (see updateModuleForAdmin).
+  declare publishedAt: CreationOptional<Date | null>;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
 
   // Only populated when eager-loaded via `include`.
   declare chapters?: NonAttribute<ModuleChapter[]>;
+  // All of the module's exams (see EXAMS_PER_MODULE).
+  declare exams?: NonAttribute<Exam[]>;
+  // The module's first exam (order 0). The trainee-facing endpoints still
+  // work with a single exam per module and read this.
   declare exam?: NonAttribute<Exam | null>;
 }
 
@@ -62,6 +69,10 @@ export function initModuleModel(sequelize: Sequelize) {
       },
       publishDate: {
         type: DataTypes.DATEONLY,
+        allowNull: true,
+      },
+      publishedAt: {
+        type: DataTypes.DATE,
         allowNull: true,
       },
       createdAt: DataTypes.DATE,

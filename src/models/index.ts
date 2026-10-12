@@ -43,10 +43,17 @@ ModuleChapter.belongsTo(TrainingModule, {
   as: 'module',
 });
 
+TrainingModule.hasMany(Exam, {
+  foreignKey: 'moduleId',
+  as: 'exams',
+  onDelete: 'CASCADE',
+});
+// The first exam only — kept for the trainee-facing endpoints.
 TrainingModule.hasOne(Exam, {
   foreignKey: 'moduleId',
   as: 'exam',
-  onDelete: 'CASCADE',
+  scope: { order: 0 },
+  constraints: false,
 });
 Exam.belongsTo(TrainingModule, {
   foreignKey: 'moduleId',

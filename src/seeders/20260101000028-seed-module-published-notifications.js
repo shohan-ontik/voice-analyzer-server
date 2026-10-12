@@ -19,7 +19,7 @@ const bengaliTitle = (title) => {
 module.exports = {
   async up(queryInterface) {
     const [modules] = await queryInterface.sequelize.query(`
-      SELECT id, title, "publishDate", "createdAt"
+      SELECT id, title, "publishedAt", "publishDate", "createdAt"
       FROM modules
       WHERE "isActive" = true
       ORDER BY "order" ASC
@@ -34,9 +34,13 @@ module.exports = {
     const rows = modules
       .filter((m) => !existingKeys.has(`module_published:${m.id}`))
       .map((m) => {
-        // Backdate to the module's publish date when it has one so the
-        // feed orders sensibly; otherwise fall back to now.
-        const createdAt = m.publishDate ? new Date(`${m.publishDate}T00:00:00.000Z`) : now;
+        // Backdate to when the module went live (or its authored publish
+        // date) so the feed orders sensibly; otherwise fall back to now.
+        const createdAt = m.publishedAt
+          ? new Date(m.publishedAt)
+          : m.publishDate
+            ? new Date(`${m.publishDate}T00:00:00.000Z`)
+            : now;
         return {
           id: uuidv4(),
           type: 'module_published',

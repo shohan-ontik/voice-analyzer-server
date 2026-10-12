@@ -1,8 +1,8 @@
 import { DataTypes, Model, type CreationOptional, type InferAttributes, type InferCreationAttributes, type NonAttribute, type Sequelize } from 'sequelize';
 import type { TrainingModule } from './module.model';
 
-// A module's final assessment (one per module — see the `moduleId` unique
-// constraint in the migration). Whether a given user has passed it is not
+// One of a module's three assessments (ordered 0..2 by `order`; unique per
+// `moduleId` + `order`). Whether a given user has passed it is not
 // stored here: it's derived from whether they have a PracticeSession with
 // this examId and an overallScore >= passMark.
 export class Exam extends Model<InferAttributes<Exam>, InferCreationAttributes<Exam>> {
@@ -11,6 +11,7 @@ export class Exam extends Model<InferAttributes<Exam>, InferCreationAttributes<E
   declare slug: string;
   declare title: string;
   declare moduleLabel: string;
+  declare order: CreationOptional<number>;
   declare scenario: string;
   declare passMark: number;
   declare dueDate: CreationOptional<Date | null>;
@@ -36,7 +37,6 @@ export function initExamModel(sequelize: Sequelize) {
       moduleId: {
         type: DataTypes.UUID,
         allowNull: false,
-        unique: true,
       },
       slug: {
         type: DataTypes.STRING(128),
@@ -50,6 +50,11 @@ export function initExamModel(sequelize: Sequelize) {
       moduleLabel: {
         type: DataTypes.STRING(500),
         allowNull: false,
+      },
+      order: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
       },
       scenario: {
         type: DataTypes.TEXT,

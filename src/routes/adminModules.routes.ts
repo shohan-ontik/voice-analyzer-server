@@ -10,7 +10,7 @@ import {
   listAdminModulesHandler,
   updateChapterHandler,
   updateModuleHandler,
-  upsertExamHandler,
+  updateExamHandler,
 } from '../controllers/adminModules.controller';
 import { authenticate } from '../middleware/authenticate';
 import { requireAdmin } from '../middleware/requireAdmin';
@@ -26,7 +26,7 @@ import {
   moduleIdParamSchema,
   updateChapterSchema,
   updateModuleSchema,
-  upsertExamSchema,
+  updateExamSchema,
 } from '../validators/adminModule.schema';
 
 export const adminModulesRouter = Router();
@@ -55,4 +55,4 @@ adminModulesRouter.delete(
   deleteMaterialHandler
 );
 
-adminModulesRouter.put('/:id/exam', validate(upsertExamSchema), upsertExamHandler);
+adminModulesRouter.put('/:id/exams/:examId', validate(updateExamSchema), updateExamHandler);

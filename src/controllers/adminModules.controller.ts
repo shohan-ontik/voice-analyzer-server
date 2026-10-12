@@ -13,7 +13,7 @@ import {
   listModulesForAdmin,
   updateChapterForAdmin,
   updateModuleForAdmin,
-  upsertExamForAdmin,
+  updateExamForAdmin,
 } from '../services/module.service';
 
 export const listAdminModulesHandler = asyncHandler(async (req: Request, res: Response) => {
@@ -86,7 +86,7 @@ export const deleteMaterialHandler = asyncHandler(async (req: Request, res: Resp
   res.status(204).send();
 });
 
-export const upsertExamHandler = asyncHandler(async (req: Request, res: Response) => {
-  const exam = await upsertExamForAdmin(req.params.id, req.body);
+export const updateExamHandler = asyncHandler(async (req: Request, res: Response) => {
+  const exam = await updateExamForAdmin(req.params.id, req.params.examId, req.body);
   res.json(exam);
 });

@@ -623,7 +623,7 @@ export const openApiDocument = {
       get: {
         tags: ['Modules'],
         summary: 'Get one active module with the caller\'s progress',
-        description: 'Each chapter carries `completedAt` and the exam carries `bestScore`/`passed`, both derived for the calling user.',
+        description: 'Each chapter carries `completedAt` and each exam in `exams` carries `bestScore`/`passed`, both derived for the calling user.',
         parameters: [{ $ref: '#/components/parameters/ModuleSlug' }],
         responses: {
           200: { description: 'OK.', content: { 'application/json': { schema: { $ref: '#/components/schemas/TrainingModule' } } } },
@@ -753,7 +753,7 @@ export const openApiDocument = {
     '/admin/modules/{id}': {
       get: {
         tags: ['Admin: Modules'],
-        summary: 'Get one module with chapters and exam (admin)',
+        summary: 'Get one module with chapters and its 3 exams (admin)',
         description: 'Admin only.',
         parameters: [{ $ref: '#/components/parameters/ModuleId' }],
         responses: {
@@ -767,15 +767,16 @@ export const openApiDocument = {
         tags: ['Admin: Modules'],
         summary: 'Update a module',
         description:
-          'Admin only. Setting `isActive: true` requires the module to already have at least one chapter and an exam, or the request is rejected with 400.',
+          'Admin only. Setting `isActive: true` requires the module to already have at least one chapter and all 3 exams set up (non-empty scenario), or the request is rejected with 400. Only one module can be first published per calendar month (Asia/Dhaka): publishing a module for the first time while another live module was first published this month is rejected with 409. Re-publishing a module first published in an earlier month is always allowed; publishing sets `publishedAt` the first time.',
         parameters: [{ $ref: '#/components/parameters/ModuleId' }],
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateModuleRequest' } } } },
         responses: {
           200: { description: 'Updated.', content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminModuleBase' } } } },
-          400: errorResponse("Invalid request body, or publishing was attempted before the module has a chapter and an exam."),
+          400: errorResponse("Invalid request body, or publishing was attempted before the module has a chapter and all 3 exams set up."),
           401: errorResponse('Missing/invalid/expired token.'),
           403: errorResponse('Caller is not an admin.'),
           404: errorResponse('Module not found.'),
+          409: errorResponse('Another module has already been published this month.'),
         },
       },
       delete: {
@@ -797,7 +798,7 @@ export const openApiDocument = {
         tags: ['Admin: Modules'],
         summary: 'Add a chapter to a module',
         description:
-          'Admin only. A slug is auto-generated from the title. If `scenario` is omitted, a TODO placeholder is stored (the admin app normally generates one via AI before calling this).',
+          'Admin only. A slug is auto-generated from the title. If `scenario` is omitted, a TODO placeholder is stored (the admin app normally generates one via AI before calling this). A module can have at most 3 chapters.',
         parameters: [{ $ref: '#/components/parameters/ModuleId' }],
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateChapterRequest' } } } },
         responses: {
@@ -806,6 +807,7 @@ export const openApiDocument = {
           401: errorResponse('Missing/invalid/expired token.'),
           403: errorResponse('Caller is not an admin.'),
           404: errorResponse('Module not found.'),
+          409: errorResponse('The module already has the maximum of 3 chapters.'),
         },
       },
     },
@@ -885,19 +887,22 @@ export const openApiDocument = {
         },
       },
     },
-    '/admin/modules/{id}/exam': {
+    '/admin/modules/{id}/exams/{examId}': {
       put: {
         tags: ['Admin: Modules'],
-        summary: "Create or update a module's exam",
-        description: 'Admin only. A module has at most one exam; this creates it on first call and updates it thereafter.',
-        parameters: [{ $ref: '#/components/parameters/ModuleId' }],
-        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UpsertExamRequest' } } } },
+        summary: "Update one of a module's exams",
+        description: 'Admin only. Every module is created with exactly 3 exams (ordered 0..2), so exams are only ever updated, never created or deleted.',
+        parameters: [
+          { $ref: '#/components/parameters/ModuleId' },
+          { name: 'examId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateExamRequest' } } } },
         responses: {
-          200: { description: 'Created or updated.', content: { 'application/json': { schema: { $ref: '#/components/schemas/ExamAdminDetail' } } } },
+          200: { description: 'Updated.', content: { 'application/json': { schema: { $ref: '#/components/schemas/ExamAdminDetail' } } } },
           400: errorResponse('Invalid request body.'),
           401: errorResponse('Missing/invalid/expired token.'),
           403: errorResponse('Caller is not an admin.'),
-          404: errorResponse('Module not found.'),
+          404: errorResponse('Exam not found in this module.'),
         },
       },
     },
@@ -1162,7 +1167,7 @@ export const openApiDocument = {
           averageScoreThisWeek: { type: 'integer', nullable: true },
           totalSessions: { type: 'integer' },
           averageScore: { type: 'integer', nullable: true, description: 'Average overallScore across every session the caller has ever recorded.' },
-          completedModules: { type: 'integer', description: 'Modules where every chapter is completed and the exam is passed.' },
+          completedModules: { type: 'integer', description: 'Modules where every chapter is completed and all of its exams are passed.' },
           passedExams: { type: 'integer' },
           pitchesRemainingThisMonth: {
             type: 'integer',
@@ -1285,6 +1290,7 @@ export const openApiDocument = {
           slug: { type: 'string' },
           title: { type: 'string' },
           moduleLabel: { type: 'string' },
+          order: { type: 'integer', description: '0-based position among the module\'s exams (0..2).' },
           scenario: { type: 'string' },
           passMark: { type: 'integer' },
           dueDate: { type: 'string', format: 'date-time', nullable: true },
@@ -1292,7 +1298,6 @@ export const openApiDocument = {
           passed: { type: 'boolean' },
         },
         required: ['id', 'slug', 'title', 'moduleLabel', 'scenario', 'passMark', 'dueDate', 'bestScore', 'passed'],
-        nullable: true,
       },
       TrainingModule: {
         type: 'object',
@@ -1304,14 +1309,14 @@ export const openApiDocument = {
           thumbnailUrl: { type: 'string', nullable: true },
           order: { type: 'integer' },
           chapters: { type: 'array', items: { $ref: '#/components/schemas/ModuleChapter' } },
-          exam: { $ref: '#/components/schemas/ModuleExam' },
+          exams: { type: 'array', description: "The module's 3 exams, ordered by `order`.", items: { $ref: '#/components/schemas/ModuleExam' } },
           chapterCount: { type: 'integer', description: 'chapters.length — provided directly so callers don\'t need to derive it.' },
           completedChapterCount: { type: 'integer', description: 'How many of chapters have a non-null completedAt.' },
           progressPercent: {
             type: 'integer',
             minimum: 0,
             maximum: 100,
-            description: "Chapters make up 80% (split evenly per chapter, then per chapter's materials); the exam makes up the remaining 20% once passed.",
+            description: "Chapters make up 80% (split evenly per chapter, then per chapter's materials); the exams make up the remaining 20%, split evenly across them (each earned once passed).",
           },
         },
         required: [
@@ -1322,7 +1327,7 @@ export const openApiDocument = {
           'thumbnailUrl',
           'order',
           'chapters',
-          'exam',
+          'exams',
           'chapterCount',
           'completedChapterCount',
           'progressPercent',
@@ -1394,6 +1399,7 @@ export const openApiDocument = {
           order: { type: 'integer' },
           isActive: { type: 'boolean' },
           publishDate: { type: 'string', format: 'date', nullable: true },
+          publishedAt: { type: 'string', format: 'date-time', nullable: true, description: 'When the module was first published (set by the server). Only one module can be first published per calendar month (Asia/Dhaka).' },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
         },
@@ -1408,15 +1414,16 @@ export const openApiDocument = {
           description: { type: 'string' },
           thumbnailUrl: { type: 'string', nullable: true },
           isActive: { type: 'boolean' },
+          publishedAt: { type: 'string', format: 'date-time', nullable: true, description: 'When the module was first published (set by the server). Only one module can be first published per calendar month (Asia/Dhaka).' },
           chapterCount: { type: 'integer' },
-          examCount: { type: 'integer', enum: [0, 1] },
+          examCount: { type: 'integer', description: 'Always 3 — every module has three exams.' },
           updatedAt: { type: 'string', format: 'date-time' },
         },
-        required: ['id', 'slug', 'title', 'description', 'thumbnailUrl', 'isActive', 'chapterCount', 'examCount', 'updatedAt'],
+        required: ['id', 'slug', 'title', 'description', 'thumbnailUrl', 'isActive', 'publishedAt', 'chapterCount', 'examCount', 'updatedAt'],
       },
       ExamAdminDetail: {
         type: 'object',
-        description: "Nested shape returned by GET /admin/modules/{id}'s `exam` field, and the full row returned by PUT /admin/modules/{id}/exam.",
+        description: "Nested shape returned by GET /admin/modules/{id}'s `exams` array, and the full row returned by PUT /admin/modules/{id}/exams/{examId}.",
         properties: {
           id: { type: 'string', format: 'uuid' },
           moduleId: { type: 'string', format: 'uuid' },
@@ -1441,6 +1448,7 @@ export const openApiDocument = {
           thumbnailUrl: { type: 'string', nullable: true },
           isActive: { type: 'boolean' },
           publishDate: { type: 'string', format: 'date', nullable: true },
+          publishedAt: { type: 'string', format: 'date-time', nullable: true, description: 'When the module was first published (set by the server). Only one module can be first published per calendar month (Asia/Dhaka).' },
           chapters: {
             type: 'array',
             items: {
@@ -1455,15 +1463,19 @@ export const openApiDocument = {
               },
             },
           },
-          exam: {
-            nullable: true,
-            type: 'object',
-            properties: {
-              id: { type: 'string', format: 'uuid' },
-              title: { type: 'string' },
-              passMark: { type: 'integer' },
-              scenario: { type: 'string' },
-              deadlineDays: { type: 'integer', nullable: true },
+          exams: {
+            type: 'array',
+            description: "The module's 3 exams, ordered by `order`.",
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                order: { type: 'integer', description: '0-based position (0..2).' },
+                title: { type: 'string' },
+                passMark: { type: 'integer' },
+                scenario: { type: 'string' },
+                deadlineDays: { type: 'integer', nullable: true },
+              },
             },
           },
         },
@@ -1504,7 +1516,7 @@ export const openApiDocument = {
           scenario: { $ref: '#/components/schemas/PitchScenario' },
         },
       },
-      UpsertExamRequest: {
+      UpdateExamRequest: {
         type: 'object',
         properties: {
           scenario: { type: 'string', maxLength: 10000 },
