@@ -1,11 +1,11 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { getModuleForUser, listExamsForUser, listModulesForUser, markMaterialComplete } from '../services/module.service';
-import type { ListExamsQuery } from '../validators/module.schema';
+import type { ListExamsQuery, ListModulesQuery } from '../validators/module.schema';
 
 export const listModulesHandler = asyncHandler(async (req: Request, res: Response) => {
-  const { page, pageSize } = req.query as unknown as { page: number; pageSize: number };
-  const result = await listModulesForUser(req.user!.id, { page, pageSize });
+  const { page, pageSize, q, status } = req.query as unknown as ListModulesQuery;
+  const result = await listModulesForUser(req.user!.id, { page, pageSize, q, status });
   res.json(result);
 });
 

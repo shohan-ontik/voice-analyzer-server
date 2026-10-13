@@ -9,7 +9,7 @@ import { authenticate } from '../middleware/authenticate';
 import { validate } from '../middleware/validate';
 import {
   listExamsSchema,
-  listModulesSchema,
+  listUserModulesSchema,
   materialCompleteParamSchema,
   moduleSlugParamSchema,
 } from '../validators/module.schema';
@@ -18,7 +18,7 @@ export const modulesRouter = Router();
 
 modulesRouter.use(authenticate);
 
-modulesRouter.get('/', validate(listModulesSchema), listModulesHandler);
+modulesRouter.get('/', validate(listUserModulesSchema), listModulesHandler);
 // Must be registered before the `/:slug` route below, or Express will treat
 // "exams" as a :slug value.
 modulesRouter.get('/exams', validate(listExamsSchema), listExamsHandler);

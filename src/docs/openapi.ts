@@ -470,7 +470,19 @@ export const openApiDocument = {
           'chapter counts and the overall `progressPercent` (chapters 80%, split evenly per chapter then per ' +
           "material within it, plus the exam's remaining 20% once passed). Fetch GET /modules/{slug} for one " +
           "module's full chapters/materials/exam, or GET /modules/exams for every module's exam data.",
-        parameters: [page.page, page.pageSize],
+        parameters: [
+          page.page,
+          page.pageSize,
+          { name: 'q', in: 'query', description: 'Case-insensitive match against title.', schema: { type: 'string' } },
+          {
+            name: 'status',
+            in: 'query',
+            description:
+              'Only modules with this status for the caller, derived from `progressPercent`: `completed` at 100, ' +
+              '`not_started` at 0, otherwise `in_progress`. `total` counts only matching modules.',
+            schema: { type: 'string', enum: ['completed', 'in_progress', 'not_started'] },
+          },
+        ],
         responses: {
           200: {
             description: 'OK.',

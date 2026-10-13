@@ -7,6 +7,22 @@ export const listModulesSchema = z.object({
   }),
 });
 
+export const moduleStatusSchema = z.enum(['completed', 'in_progress', 'not_started']);
+
+export const listModulesQuerySchema = listModulesSchema.shape.query.extend({
+  q: z.string().trim().min(1).optional(),
+  // Derived from the caller's progressPercent (see getModuleStatus in
+  // module.service), so it's filtered after progress is computed.
+  status: moduleStatusSchema.optional(),
+});
+
+export type ModuleStatus = z.infer<typeof moduleStatusSchema>;
+export type ListModulesQuery = z.infer<typeof listModulesQuerySchema>;
+
+export const listUserModulesSchema = z.object({
+  query: listModulesQuerySchema,
+});
+
 export const listExamsSchema = z.object({
   query: listModulesSchema.shape.query.extend({
     // `order` = the module's curriculum order (the default); `dueDate` =

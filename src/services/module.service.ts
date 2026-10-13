@@ -15,6 +15,7 @@ import type { LearningMaterialType } from "../models/learningMaterial.model";
 import type { ChapterScenario } from "../models/moduleChapter.model";
 import { ApiError } from "../utils/ApiError";
 import { UPLOAD_DIR } from "../utils/uploadPath";
+import type { ModuleStatus } from "../validators/module.schema";
 import { createModulePublishedNotification } from "./notification.service";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -386,21 +387,53 @@ async function fetchActiveModules() {
   });
 }
 
+// Mirrors the frontend's getModuleStatus (app/lib/moduleProgress.ts).
+function getModuleStatus(progressPercent: number): ModuleStatus {
+  if (progressPercent >= 100) return "completed";
+  if (progressPercent <= 0) return "not_started";
+  return "in_progress";
+}
+
 export async function listModulesForUser(
   userId: string,
-  params: { page: number; pageSize: number },
+  params: { page: number; pageSize: number; q?: string; status?: ModuleStatus },
 ) {
-  const { rows, count } = await TrainingModule.findAndCountAll({
-    where: { isActive: true },
-    include: MODULE_INCLUDE,
-    order: [["order", "ASC"]],
-    limit: params.pageSize,
-    offset: (params.page - 1) * params.pageSize,
-    // Avoids duplicate/undercounted rows from the hasMany `chapters` include.
-    distinct: true,
-  });
+  const where = {
+    isActive: true,
+    ...(params.q ? { title: { [Op.iLike]: `%${params.q}%` } } : {}),
+  };
+  const offset = (params.page - 1) * params.pageSize;
 
-  const items = await attachListProgress(rows, userId);
+  let items: Awaited<ReturnType<typeof attachListProgress>>;
+  let count: number;
+  if (params.status) {
+    // Status is derived from the caller's progress rather than stored, so it
+    // can't be filtered in SQL — load every matching module, filter, then
+    // paginate in memory so `total` counts only modules with that status.
+    const modules = await TrainingModule.findAll({
+      where,
+      include: MODULE_INCLUDE,
+      order: [["order", "ASC"]],
+    });
+    const matching = (await attachListProgress(modules, userId)).filter(
+      (m) => getModuleStatus(m.progressPercent) === params.status,
+    );
+    items = matching.slice(offset, offset + params.pageSize);
+    count = matching.length;
+  } else {
+    const result = await TrainingModule.findAndCountAll({
+      where,
+      include: MODULE_INCLUDE,
+      order: [["order", "ASC"]],
+      limit: params.pageSize,
+      offset,
+      // Avoids duplicate/undercounted rows from the hasMany `chapters` include.
+      distinct: true,
+    });
+    items = await attachListProgress(result.rows, userId);
+    count = result.count;
+  }
+
   const totalPages = Math.ceil(count / params.pageSize);
 
   return {
