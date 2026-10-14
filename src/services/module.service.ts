@@ -567,11 +567,13 @@ function slugify(title: string) {
 export async function listModulesForAdmin(params: {
   page: number;
   pageSize: number;
+  isActive?: boolean;
 }) {
   const { count, rows } = await TrainingModule.findAndCountAll({
+    where: params.isActive === undefined ? {} : { isActive: params.isActive },
     include: [
       { model: ModuleChapter, as: "chapters", attributes: ["id"] },
-      { model: Exam, as: "exams", attributes: ["id"] },
+      { model: Exam, as: "exams", attributes: ["id", "scenario"] },
     ],
     order: [
       ["order", "ASC"],
@@ -593,6 +595,8 @@ export async function listModulesForAdmin(params: {
     publishedAt: m.publishedAt,
     chapterCount: (m.chapters ?? []).length,
     examCount: (m.exams ?? []).length,
+    // Exams with a scenario written — the same "set up" rule publishing requires.
+    examsConfiguredCount: (m.exams ?? []).filter((e) => e.scenario.trim() !== "").length,
     updatedAt: m.updatedAt,
   }));
 

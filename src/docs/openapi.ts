@@ -721,7 +721,11 @@ export const openApiDocument = {
         tags: ['Admin: Modules'],
         summary: 'List all modules (admin — includes inactive)',
         description: 'Admin only.',
-        parameters: [page.page, page.pageSize],
+        parameters: [
+          page.page,
+          page.pageSize,
+          { name: 'isActive', in: 'query', description: 'Only published (`true`) or only draft (`false`) modules. Omit for all.', schema: { type: 'boolean' } },
+        ],
         responses: {
           200: {
             description: 'OK.',
@@ -1064,8 +1068,10 @@ export const openApiDocument = {
           sessionsThisWeek: { type: 'integer', description: 'Created in the last 7 days, across all users.' },
           examsTaken: { type: 'integer', description: 'Practice sessions of type `exam` (graded exam attempts).' },
           avgProficiency: { type: 'integer', nullable: true, description: 'Average overall score across all practice sessions; null when there are none.' },
+          modulesPublished: { type: 'integer', description: 'Modules that are published (isActive).' },
+          draftModules: { type: 'integer', description: 'Modules that are not published yet (not isActive).' },
         },
-        required: ['totalUsers', 'bannedUsers', 'totalPracticeSessions', 'sessionsThisWeek', 'examsTaken', 'avgProficiency'],
+        required: ['totalUsers', 'bannedUsers', 'totalPracticeSessions', 'sessionsThisWeek', 'examsTaken', 'avgProficiency', 'modulesPublished', 'draftModules'],
       },
 
       RecentActivityItem: {
@@ -1429,9 +1435,10 @@ export const openApiDocument = {
           publishedAt: { type: 'string', format: 'date-time', nullable: true, description: 'When the module was first published (set by the server). Only one module can be first published per calendar month (Asia/Dhaka).' },
           chapterCount: { type: 'integer' },
           examCount: { type: 'integer', description: 'Always 3 — every module has three exams.' },
+          examsConfiguredCount: { type: 'integer', description: 'How many of the exams have a scenario written (all 3 are required to publish).' },
           updatedAt: { type: 'string', format: 'date-time' },
         },
-        required: ['id', 'slug', 'title', 'description', 'thumbnailUrl', 'isActive', 'publishedAt', 'chapterCount', 'examCount', 'updatedAt'],
+        required: ['id', 'slug', 'title', 'description', 'thumbnailUrl', 'isActive', 'publishedAt', 'chapterCount', 'examCount', 'examsConfiguredCount', 'updatedAt'],
       },
       ExamAdminDetail: {
         type: 'object',

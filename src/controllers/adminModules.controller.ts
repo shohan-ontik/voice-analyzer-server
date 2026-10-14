@@ -17,8 +17,8 @@ import {
 } from '../services/module.service';
 
 export const listAdminModulesHandler = asyncHandler(async (req: Request, res: Response) => {
-  const { page, pageSize } = req.query as unknown as { page: number; pageSize: number };
-  const result = await listModulesForAdmin({ page, pageSize });
+  const { page, pageSize, isActive } = req.query as unknown as { page: number; pageSize: number; isActive?: boolean };
+  const result = await listModulesForAdmin({ page, pageSize, isActive });
   res.json(result);
 });
 

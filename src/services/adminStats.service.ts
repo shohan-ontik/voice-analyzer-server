@@ -4,7 +4,16 @@ import { Exam, ModuleChapter, PracticeSession, TrainingModule, User } from '../m
 export async function getAdminStatsSummary() {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const [totalUsers, bannedUsers, totalPracticeSessions, sessionsThisWeek, examsTaken, avgScoreRow] = await Promise.all([
+  const [
+    totalUsers,
+    bannedUsers,
+    totalPracticeSessions,
+    sessionsThisWeek,
+    examsTaken,
+    avgScoreRow,
+    modulesPublished,
+    draftModules,
+  ] = await Promise.all([
     User.count(),
     User.count({ where: { isBanned: true } }),
     PracticeSession.count(),
@@ -14,6 +23,8 @@ export async function getAdminStatsSummary() {
       attributes: [[fn('AVG', col('overallScore')), 'avgScore']],
       raw: true,
     }) as unknown as Promise<{ avgScore: string | null } | null>,
+    TrainingModule.count({ where: { isActive: true } }),
+    TrainingModule.count({ where: { isActive: false } }),
   ]);
 
   // Average overall score across every practice session (exam + pitch
@@ -21,7 +32,16 @@ export async function getAdminStatsSummary() {
   // users list. Null when there are no sessions yet.
   const avgProficiency = avgScoreRow?.avgScore == null ? null : Math.round(Number(avgScoreRow.avgScore));
 
-  return { totalUsers, bannedUsers, totalPracticeSessions, sessionsThisWeek, examsTaken, avgProficiency };
+  return {
+    totalUsers,
+    bannedUsers,
+    totalPracticeSessions,
+    sessionsThisWeek,
+    examsTaken,
+    avgProficiency,
+    modulesPublished,
+    draftModules,
+  };
 }
 
 // Most recent practice sessions across all users, newest first. `module` is
